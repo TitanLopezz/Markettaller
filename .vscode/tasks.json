@@ -1,0 +1,59 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Apply MySQL schema",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"backend/src/infrastructure/database/migrate.js"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Test backend modules",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"--test",
+				"backend/test/userAuth.test.js"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Build frontend",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"frontend/node_modules/vite/bin/vite.js",
+				"build",
+				"frontend"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Test Orders MySQL integration",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"--test",
+				"backend/test/ordersMysql.integration.test.js"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Bootstrap Super Admin",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"backend/scripts/bootstrapSuperAdmin.js"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		}
+	]
+}
