@@ -3,6 +3,7 @@ import './App.css'
 import ProductCatalog from './ProductCatalog'
 import ProviderOrders from './ProviderOrders'
 import SuperAdminPanel from './SuperAdminPanel'
+import { getApiErrorMessage } from './apiError'
 
 const API_URL = 'http://localhost:3000/api/users'
 const emptyForm = { name: '', email: '', password: '', role: 'gestor' }
@@ -114,7 +115,7 @@ function App() {
         setCurrentView('catalog')
       }
     } catch (error) {
-      setStatus({ type: 'error', message: error.message })
+      setStatus({ type: 'error', message: getApiErrorMessage(error, 'No se pudo completar la solicitud.') })
     } finally {
       setLoading(false)
     }

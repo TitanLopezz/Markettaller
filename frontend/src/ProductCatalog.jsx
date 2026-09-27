@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { getApiErrorMessage } from './apiError'
 
 const API_URL = 'http://localhost:3000/api/products'
 const BROKEN_MOUSE_IMAGE_URL = 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Computer_mouse.svg/200px-Computer_mouse.svg.png'
@@ -92,7 +93,7 @@ function ProductCatalog({ user, token, onLogout, onManageRequests, onViewOrders 
         setProducts(Array.isArray(result) ? result : [])
       } catch (requestError) {
         if (requestError.name !== 'AbortError') {
-          setError(requestError.message)
+          setError(getApiErrorMessage(requestError, 'No se pudo cargar el catálogo.'))
         }
       } finally {
         if (!controller.signal.aborted) {
@@ -170,7 +171,7 @@ function ProductCatalog({ user, token, onLogout, onManageRequests, onViewOrders 
       setNotice(editingId ? 'Producto actualizado.' : 'Producto agregado.')
       resetForm()
     } catch (requestError) {
-      setError(requestError.message)
+      setError(getApiErrorMessage(requestError, 'No se pudo guardar el producto.'))
     } finally {
       setSaving(false)
     }
@@ -207,7 +208,7 @@ function ProductCatalog({ user, token, onLogout, onManageRequests, onViewOrders 
         resetForm()
       }
     } catch (requestError) {
-      setError(requestError.message)
+      setError(getApiErrorMessage(requestError, 'No se pudo eliminar el producto.'))
     } finally {
       setBusyId(null)
     }
@@ -238,7 +239,7 @@ function ProductCatalog({ user, token, onLogout, onManageRequests, onViewOrders 
       setOrderProduct(null)
       setOrderQuantity('1')
     } catch (requestError) {
-      setError(requestError.message)
+      setError(getApiErrorMessage(requestError, 'No se pudo enviar la solicitud.'))
     } finally {
       setSubmittingOrder(false)
     }

@@ -2,6 +2,43 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
+			"label": "Start local app",
+			"type": "shell",
+			"command": "npm.cmd",
+			"args": [
+				"run",
+				"dev",
+				"--prefix",
+				"frontend"
+			],
+			"isBackground": true,
+			"problemMatcher": [
+				{
+					"owner": "local-app",
+					"pattern": [
+						{
+							"regexp": "^__NO_TASK_PROBLEM_MATCH__$"
+						}
+					],
+					"background": {
+						"activeOnStart": true,
+						"beginsPattern": "^\\[(API|WEB)\\]",
+						"endsPattern": "Servidor corriendo en http://localhost:3000"
+					}
+				}
+			],
+			"presentation": {
+				"reveal": "always",
+				"focus": false,
+				"panel": "dedicated",
+				"showReuseMessage": false
+			},
+			"runOptions": {
+				"runOn": "folderOpen",
+				"instanceLimit": 1
+			}
+		},
+		{
 			"label": "Apply MySQL schema",
 			"type": "shell",
 			"command": "node",

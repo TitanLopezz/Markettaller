@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { getApiErrorMessage } from './apiError'
 
 const API_URL = 'http://localhost:3000/api/orders/my-orders'
 const dateFormatter = new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short' })
@@ -35,7 +36,7 @@ function ProviderOrders({ user, token, onBack, onLogout }) {
         setOrders(Array.isArray(result) ? result : [])
       } catch (requestError) {
         if (requestError.name !== 'AbortError') {
-          setError(requestError.message)
+          setError(getApiErrorMessage(requestError, 'No se pudo cargar el historial de pedidos.'))
         }
       } finally {
         if (!controller.signal.aborted) {

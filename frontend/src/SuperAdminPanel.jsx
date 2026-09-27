@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { getApiErrorMessage } from './apiError'
 
 const API_URL = 'http://localhost:3000/api/users'
 const ORDERS_API_URL = 'http://localhost:3000/api/orders'
@@ -65,7 +66,7 @@ function SuperAdminPanel({ token, onBack }) {
         setProductRequests(Array.isArray(results[2]) ? results[2] : [])
       } catch (requestError) {
         if (requestError.name !== 'AbortError') {
-          setError(requestError.message)
+          setError(getApiErrorMessage(requestError, 'No se pudo cargar la lista de solicitudes.'))
         }
       } finally {
         if (!controller.signal.aborted) {
@@ -116,7 +117,7 @@ function SuperAdminPanel({ token, onBack }) {
         setNotice(`Solicitud de ${action} para ${item.product_data.nombre}: ${status}.`)
       }
     } catch (requestError) {
-      setError(requestError.message)
+      setError(getApiErrorMessage(requestError, 'No se pudo actualizar la solicitud.'))
     } finally {
       setBusyId(null)
     }
