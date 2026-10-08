@@ -15,11 +15,11 @@
 			"problemMatcher": [
 				{
 					"owner": "local-app",
-					"pattern": [
-						{
-							"regexp": "^__NO_TASK_PROBLEM_MATCH__$"
-						}
-					],
+					"pattern": {
+						"regexp": "^(__NO_TASK_PROBLEM_MATCH__)$",
+						"file": 1,
+						"message": 1
+					},
 					"background": {
 						"activeOnStart": true,
 						"beginsPattern": "^\\[(API|WEB)\\]",

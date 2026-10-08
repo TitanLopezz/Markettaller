@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getApiErrorMessage } from './apiError'
+import { ORDERS_API_URL, PRODUCTS_API_URL, USERS_API_URL } from './api'
 
-const API_URL = 'http://localhost:3000/api/users'
-const ORDERS_API_URL = 'http://localhost:3000/api/orders'
-const PRODUCTS_API_URL = 'http://localhost:3000/api/products'
 const orderDate = new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short' })
 const currency = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' })
 
@@ -46,7 +44,7 @@ function SuperAdminPanel({ token, onBack }) {
 
       try {
         const endpoints = [
-          `${API_URL}/pending`,
+          `${USERS_API_URL}/pending`,
           `${ORDERS_API_URL}/pending`,
           `${PRODUCTS_API_URL}/requests/pending`,
         ]
@@ -87,7 +85,7 @@ function SuperAdminPanel({ token, onBack }) {
     setNotice('')
 
     try {
-      const endpoint = isUser ? API_URL : isOrder ? ORDERS_API_URL : PRODUCTS_API_URL
+      const endpoint = isUser ? USERS_API_URL : isOrder ? ORDERS_API_URL : PRODUCTS_API_URL
       const requestUrl = activeTab === 'products'
         ? `${endpoint}/requests/${item.id}/status`
         : `${endpoint}/${item.id}/status`

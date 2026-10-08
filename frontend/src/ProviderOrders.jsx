@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getApiErrorMessage } from './apiError'
+import { ORDERS_API_URL } from './api'
 
-const API_URL = 'http://localhost:3000/api/orders/my-orders'
 const dateFormatter = new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short' })
 const statusLabels = {
   pendiente: 'Pendiente',
@@ -23,7 +23,7 @@ function ProviderOrders({ user, token, onBack, onLogout }) {
       setError('')
 
       try {
-        const response = await fetch(API_URL, {
+        const response = await fetch(`${ORDERS_API_URL}/my-orders`, {
           headers: { Authorization: `Bearer ${token}` },
           signal: controller.signal,
         })

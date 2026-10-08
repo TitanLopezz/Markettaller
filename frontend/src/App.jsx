@@ -4,8 +4,8 @@ import ProductCatalog from './ProductCatalog'
 import ProviderOrders from './ProviderOrders'
 import SuperAdminPanel from './SuperAdminPanel'
 import { getApiErrorMessage } from './apiError'
+import { USERS_API_URL } from './api'
 
-const API_URL = 'http://localhost:3000/api/users'
 const emptyForm = { name: '', email: '', password: '', role: 'gestor' }
 const roleLabel = (role) => role === 'proveedor' ? 'Proveedor' : role === 'super_admin' ? 'Super Admin' : 'Gestor de Productos'
 const roleBadgeClass = (role) => role === 'proveedor'
@@ -89,7 +89,7 @@ function App() {
 
     try {
       const action = mode === 'register' ? 'register' : 'login'
-      const response = await fetch(`${API_URL}/${action}`, {
+      const response = await fetch(`${USERS_API_URL}/${action}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),

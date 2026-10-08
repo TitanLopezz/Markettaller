@@ -48,20 +48,72 @@ class MySQLOrderRepository {
   }
 
   async updatePendingStatus(id, status) {
-    const [result] = await this.pool.execute(
-      'UPDATE orders SET status = ? WHERE id = ? AND status = ?',
-      [status, id, ORDER_STATUSES.PENDING],
-    );
+    const connection = await this.pool.getConnection();
 
-    if (result.affectedRows === 1) {
-      return { updated: true, id, status };
+    try {
+      await connection.beginTransaction();
+      const [orders] = await connection.execute(
+        `SELECT id, product_id, quantity, status
+         FROM orders
+         WHERE id = ?
+         FOR UPDATE`,
+        [id],
+      );
+      const order = orders[0];
+
+      if (!order) {
+        await connection.rollback();
+        return null;
+      }
+
+      if (order.status !== ORDER_STATUSES.PENDING) {
+        await connection.rollback();
+        return { updated: false, id: order.id, status: order.status };
+      }
+
+      if (status === ORDER_STATUSES.APPROVED) {
+        const [products] = await connection.execute(
+          'SELECT id, stock FROM products WHERE id = ? FOR UPDATE',
+          [order.product_id],
+        );
+        const product = products[0];
+
+        if (!product) {
+          const error = new Error('El producto del pedido ya no existe.');
+          error.statusCode = 404;
+          throw error;
+        }
+
+        if (Number(product.stock) < Number(order.quantity)) {
+          const error = new Error('Stock insuficiente para aprobar el pedido.');
+          error.statusCode = 409;
+          throw error;
+        }
+
+        const [stockUpdate] = await connection.execute(
+          'UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?',
+          [order.quantity, order.product_id, order.quantity],
+        );
+
+        if (stockUpdate.affectedRows !== 1) {
+          const error = new Error('Stock insuficiente para aprobar el pedido.');
+          error.statusCode = 409;
+          throw error;
+        }
+      }
+
+      await connection.execute(
+        'UPDATE orders SET status = ? WHERE id = ? AND status = ?',
+        [status, id, ORDER_STATUSES.PENDING],
+      );
+      await connection.commit();
+      return { updated: true, id: order.id, status };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
     }
-
-    const [rows] = await this.pool.execute(
-      'SELECT id, status FROM orders WHERE id = ? LIMIT 1',
-      [id],
-    );
-    return rows[0] ? { updated: false, id: rows[0].id, status: rows[0].status } : null;
   }
 }
 

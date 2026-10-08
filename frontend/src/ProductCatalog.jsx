@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getApiErrorMessage } from './apiError'
+import { ORDERS_API_URL, PRODUCTS_API_URL } from './api'
 
-const API_URL = 'http://localhost:3000/api/products'
 const BROKEN_MOUSE_IMAGE_URL = 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Computer_mouse.svg/200px-Computer_mouse.svg.png'
 const MOUSE_IMAGE_FALLBACK_URL = 'https://commons.wikimedia.org/wiki/Special:FilePath/Computer_mouse.svg?width=200'
 const HEADPHONES_IMAGE_FALLBACK_URL = 'https://thumb.wikimedia.org/wikipedia/commons/thumb/4/40/Headphones_1.jpg/500px-Headphones_1.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail'
@@ -80,7 +80,7 @@ function ProductCatalog({ user, token, onLogout, onManageRequests, onViewOrders 
       setError('')
 
       try {
-        const response = await fetch(API_URL, {
+        const response = await fetch(PRODUCTS_API_URL, {
           headers: { Authorization: `Bearer ${token}` },
           signal: controller.signal,
         })
@@ -144,7 +144,7 @@ function ProductCatalog({ user, token, onLogout, onManageRequests, onViewOrders 
     setNotice('')
 
     try {
-      const response = await fetch(editingId ? `${API_URL}/${editingId}` : API_URL, {
+      const response = await fetch(editingId ? `${PRODUCTS_API_URL}/${editingId}` : PRODUCTS_API_URL, {
         method: editingId ? 'PUT' : 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -187,7 +187,7 @@ function ProductCatalog({ user, token, onLogout, onManageRequests, onViewOrders 
     setNotice('')
 
     try {
-      const response = await fetch(`${API_URL}/${product.id}`, {
+      const response = await fetch(`${PRODUCTS_API_URL}/${product.id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -221,7 +221,7 @@ function ProductCatalog({ user, token, onLogout, onManageRequests, onViewOrders 
     setNotice('')
 
     try {
-      const response = await fetch('http://localhost:3000/api/orders', {
+      const response = await fetch(ORDERS_API_URL, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -411,7 +411,10 @@ function ProductCatalog({ user, token, onLogout, onManageRequests, onViewOrders 
           <section className="request-dialog" role="dialog" aria-modal="true" aria-labelledby="request-title">
             <p className="eyebrow">SOLICITUD DE PROVEEDOR</p>
             <h2 id="request-title">{orderProduct.nombre}</h2>
-            <p className="request-copy">La solicitud quedará pendiente de aprobación.</p>
+            <p className="request-copy">
+              La solicitud quedará pendiente de aprobación. Stock disponible: {orderProduct.stock}.
+              Se descontará al aprobar y la disponibilidad puede cambiar antes de la revisión.
+            </p>
             <form className="user-form" onSubmit={submitOrder}>
               <label>
                 Cantidad
