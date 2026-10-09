@@ -1,8 +1,8 @@
 const { createCommerce } = require('./createCommerce');
-const { MySQLUserRepository } = require('../infrastructure/repositories/MySQLUserRepository');
-const { MySQLProductRepository } = require('../infrastructure/repositories/MySQLProductRepository');
-const { MySQLProductRequestRepository } = require('../infrastructure/repositories/MySQLProductRequestRepository');
-const { MySQLOrderRepository } = require('../infrastructure/repositories/MySQLOrderRepository');
+const { PostgresUserRepository } = require('../infrastructure/repositories/PostgresUserRepository');
+const { PostgresProductRepository } = require('../infrastructure/repositories/PostgresProductRepository');
+const { PostgresProductRequestRepository } = require('../infrastructure/repositories/PostgresProductRequestRepository');
+const { PostgresOrderRepository } = require('../infrastructure/repositories/PostgresOrderRepository');
 const { createRegisterUser } = require('../application/use-cases/registerUser');
 const { createLoginUser } = require('../application/use-cases/loginUser');
 const { createListPendingUsers } = require('../application/use-cases/listPendingUsers');
@@ -22,18 +22,18 @@ const { createUpdateOrderStatus } = require('../application/use-cases/updateOrde
 const {BcryptPasswordHasher}=require('../infrastructure/services/BcryptPasswordHasher');
 const {JwtTokenService}=require('../infrastructure/services/JwtTokenService');
 const {NodeCryptoService}=require('../infrastructure/services/NodeCryptoService');
-const {MySQLUnitOfWork}=require('../infrastructure/database/MySQLUnitOfWork');
+const {PostgresUnitOfWork}=require('../infrastructure/database/PostgresUnitOfWork');
 const {createResolveProviderOrder}=require('../application/use-cases/resolveProviderOrder');
 const {createResolveProductRequest}=require('../application/use-cases/resolveProductRequest');
 const {createAuthenticateSession}=require('../application/use-cases/authenticateSession');
 const {createSubmitProductChange}=require('../application/use-cases/submitProductChange');
 const createServices=(pool,env=process.env)=>{
- const passwordHasher=new BcryptPasswordHasher(),crypto=new NodeCryptoService(),tokenService=new JwtTokenService(env.JWT_SECRET),unitOfWork=new MySQLUnitOfWork(pool);
+ const passwordHasher=new BcryptPasswordHasher(),crypto=new NodeCryptoService(),tokenService=new JwtTokenService(env.JWT_SECRET),unitOfWork=new PostgresUnitOfWork(pool);
  const resolveProviderOrder=createResolveProviderOrder({unitOfWork}),resolveProductRequest=createResolveProductRequest({unitOfWork});
-  const userRepository = new MySQLUserRepository(pool);
-  const productRepository = new MySQLProductRepository(pool);
-  const productRequestRepository = new MySQLProductRequestRepository(pool);
-  const orderRepository = new MySQLOrderRepository(pool);
+  const userRepository = new PostgresUserRepository(pool);
+  const productRepository = new PostgresProductRepository(pool);
+  const productRequestRepository = new PostgresProductRequestRepository(pool);
+  const orderRepository = new PostgresOrderRepository(pool);
   const registerUser = createRegisterUser({ userRepository,passwordHasher,crypto });
   const loginUser = createLoginUser({ userRepository,passwordHasher,tokenService });
   const listPendingUsers = createListPendingUsers({ userRepository });

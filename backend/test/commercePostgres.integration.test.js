@@ -4,27 +4,29 @@ const assert = require('node:assert/strict');
 const {randomUUID} = require('node:crypto');
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const mysql = require('mysql2/promise');
+const {Client,Pool}=require('pg');
+require('../src/infrastructure/database/postgresPool');
+const {execute}=require('../src/infrastructure/database/persistenceErrors');
 const jwt = require('jsonwebtoken');
 const {createCommerce} = require('../src/bootstrap/createCommerce');
 const {createApp} = require('../src/infrastructure/http/app');
-const {MySQLUserRepository} = require('../src/infrastructure/repositories/MySQLUserRepository');
+const {PostgresUserRepository} = require('../src/infrastructure/repositories/PostgresUserRepository');
 const {createRegisterUser} = require('../src/application/use-cases/registerUser');
 const {createLoginUser} = require('../src/application/use-cases/loginUser');
-require('dotenv').config({path:path.join(__dirname,'../.env')});
 
-test('ecommerce HTTP workflow uses isolated MySQL tables and protects checkout, stock and accounts', {skip:!process.env.DB_HOST || !process.env.DB_USER}, async t=>{
+
+test('ecommerce HTTP workflow uses isolated Postgres tables and protects checkout, stock and accounts', {skip:!process.env.PG_TEST_HOST || !process.env.PG_TEST_USER}, async t=>{
   const database=`commerce_test_${randomUUID().replaceAll('-','')}`;
-  const settings={host:process.env.DB_HOST,port:Number(process.env.DB_PORT||3306),user:process.env.DB_USER,password:process.env.DB_PASSWORD||'',multipleStatements:true};
-  const root=await mysql.createConnection(settings);
+  const settings={host:process.env.PG_TEST_HOST,port:Number(process.env.PG_TEST_PORT||5432),user:process.env.PG_TEST_USER,password:process.env.PG_TEST_PASSWORD||'',multipleStatements:true};
+  const root=new Client({...settings,database:'postgres'}); await root.connect();
   let pool,server;
   const previousSecret=process.env.JWT_SECRET;
   process.env.JWT_SECRET='commerce-test-secret';
   try {
-    await root.query(`CREATE DATABASE \`${database}\``);
-    pool=mysql.createPool({...settings,database});
+    await root.query(`CREATE DATABASE "${database}"`);
+    pool=new Pool({...settings,database});
     for(const file of ['schema.sql','commerce.sql']) await pool.query(await fs.readFile(path.join(__dirname,'../src/infrastructure/database',file),'utf8'));
-    const userRepository=new MySQLUserRepository(pool);
+    const userRepository=new PostgresUserRepository(pool);
     const messages=[];
     const commerce=createCommerce(pool,{SHIPPING_FEE_CENTS:'100',FREE_SHIPPING_CENTS:'3000',TRANSFER_INSTRUCTIONS:'Cuenta de prueba',FRONTEND_ORIGIN:'https://example.test',RESEND_API_KEY:'fake',MAIL_FROM:'test@example.test'},async(to,subject,text)=>{messages.push({to,subject,text});return true;});
     const app=createApp({...createServices(pool),commerce});
@@ -38,7 +40,7 @@ test('ecommerce HTTP workflow uses isolated MySQL tables and protects checkout, 
     let customer,other,admin,manager,provider,order,firstProduct,secondProduct;
     const address={recipient:'Ada',phone:'5512345678',street:'Calle Uno 123',district:'Centro',city:'Ciudad de México',state:'CDMX',postal_code:'06000'};
     const body=(key=randomUUID(),items=[{product_id:firstProduct,quantity:2},{product_id:secondProduct,quantity:1}])=>({items,address,payment_method:'contra_entrega',request_key:key,total_cents:1,user_id:999});
-    const stock=async id=>{const [[p]]=await pool.execute('SELECT stock FROM products WHERE id=?',[id]);return p.stock;};
+    const stock=async id=>{const [[p]]=await execute(pool,'SELECT stock FROM products WHERE id=$1',[id]);return p.stock;};
     await t.test('public catalog, automatic customer registration, and staff approval remain separate',async()=>{
       assert.equal((await request('/api/shop/catalog')).status,200);
       for(const email of ['ada@example.test','other@example.test']){
@@ -50,15 +52,15 @@ test('ecommerce HTTP workflow uses isolated MySQL tables and protects checkout, 
       }
       const staff=await request('/api/users/register',null,'POST',{name:'Gestor',email:'staff@example.test',password:'secret123',role:'gestor'});
       assert.equal(staff.data.user.status,'pendiente');
-      await pool.execute("UPDATE users SET status='aprobado' WHERE id=?",[staff.data.user.id]);
+      await execute(pool,"UPDATE users SET status='aprobado' WHERE id=$1",[staff.data.user.id]);
       manager=jwt.sign({sub:staff.data.user.id,role:'gestor',version:0},process.env.JWT_SECRET);
-      const [supplier]=await pool.execute("INSERT INTO users (name,email,password_hash,role,status) VALUES ('Proveedor','supplier@example.test','unused','proveedor','aprobado')");
+      const [supplier]=await execute(pool,"INSERT INTO users (name,email,password_hash,role,status) VALUES ('Proveedor','supplier@example.test','unused','proveedor','aprobado') RETURNING id");
       provider=jwt.sign({sub:supplier.insertId,role:'proveedor',version:0},process.env.JWT_SECRET);
       assert.equal((await request('/api/users/register',null,'POST',{name:'Admin',email:'admin@example.test',password:'secret123',role:'super_admin'})).status,400);
-      const [result]=await pool.execute("INSERT INTO users (name,email,password_hash,role,status) VALUES ('Admin','admin@example.test','unused','super_admin','aprobado')");
+      const [result]=await execute(pool,"INSERT INTO users (name,email,password_hash,role,status) VALUES ('Admin','admin@example.test','unused','super_admin','aprobado') RETURNING id");
       admin=jwt.sign({sub:result.insertId,role:'super_admin',version:0},process.env.JWT_SECRET);
-      const [p1]=await pool.execute("INSERT INTO products (nombre,descripcion,precio,categoria,stock) VALUES ('Uno','Producto',12.34,'Prueba',8)");firstProduct=p1.insertId;
-      const [p2]=await pool.execute("INSERT INTO products (nombre,descripcion,precio,categoria,stock) VALUES ('Dos','Producto',5.00,'Prueba',8)");secondProduct=p2.insertId;
+      const [p1]=await execute(pool,"INSERT INTO products (nombre,descripcion,precio,categoria,stock) VALUES ('Uno','Producto',12.34,'Prueba',8) RETURNING id");firstProduct=p1.insertId;
+      const [p2]=await execute(pool,"INSERT INTO products (nombre,descripcion,precio,categoria,stock) VALUES ('Dos','Producto',5.00,'Prueba',8) RETURNING id");secondProduct=p2.insertId;
     });
     await t.test('saved addresses are private and validated',async()=>{
       const saved=await request('/api/shop/addresses',customer.token,'POST',address);
@@ -77,7 +79,7 @@ test('ecommerce HTTP workflow uses isolated MySQL tables and protects checkout, 
       assert.equal(Number(order.subtotal_cents),2968);assert.equal(Number(order.shipping_cents),100);assert.equal(Number(order.total_cents),3068);
       assert.equal(await stock(firstProduct),6);assert.equal(await stock(secondProduct),7);
       assert.equal((await request('/api/shop/checkout',customer.token,'POST',{...payload,items:[{product_id:firstProduct,quantity:1}]})).status,409);
-      await pool.execute('UPDATE products SET precio=20 WHERE id=?',[firstProduct]);
+      await execute(pool,'UPDATE products SET precio=20 WHERE id=$1',[firstProduct]);
       const history=await request('/api/shop/orders',customer.token);
       assert.equal(Number(history.data[0].items.find(i=>Number(i.product_id)===firstProduct).unit_price_cents),1234);
       assert.equal((await request(`/api/shop/orders/${order.id}`,other.token)).status,404);
@@ -88,7 +90,7 @@ test('ecommerce HTTP workflow uses isolated MySQL tables and protects checkout, 
       const before=await stock(firstProduct);
       assert.equal((await request('/api/shop/checkout',customer.token,'POST',body(randomUUID(),[{product_id:firstProduct,quantity:1},{product_id:secondProduct,quantity:100}]))).status,409);
       assert.equal(await stock(firstProduct),before);
-      await pool.execute('UPDATE products SET stock=1 WHERE id=?',[secondProduct]);
+      await execute(pool,'UPDATE products SET stock=1 WHERE id=$1',[secondProduct]);
       const competing=await Promise.all([customer,other].map(c=>request('/api/shop/checkout',c.token,'POST',body(randomUUID(),[{product_id:secondProduct,quantity:1}]))));
       assert.deepEqual(competing.map(r=>r.status).sort(),[200,409]);assert.equal(await stock(secondProduct),0);
     });
@@ -158,11 +160,11 @@ test('ecommerce HTTP workflow uses isolated MySQL tables and protects checkout, 
       assert.equal(forgot.status,200);
       assert.deepEqual((await request('/api/shop/forgot-password',null,'POST',{email:'missing@example.test'})).data,forgot.data);
       const expired=messages.findLast(m=>m.subject==='Recuperar contraseña').text.match(/#reset=([a-f0-9]{64})/)[1];
-      await pool.execute('UPDATE password_reset_tokens SET expires_at = DATE_SUB(NOW(), INTERVAL 1 MINUTE) WHERE user_id = ?',[customer.user.id]);
+      await execute(pool,'UPDATE password_reset_tokens SET expires_at = (NOW() - INTERVAL \'1 minute\') WHERE user_id = $1',[customer.user.id]);
       assert.equal((await request('/api/shop/reset-password',null,'POST',{token:expired,password:'expired-secret123'})).status,400);
       await request('/api/shop/forgot-password',null,'POST',{email:'ada@example.test'});
       const token=messages.findLast(m=>m.subject==='Recuperar contraseña').text.match(/#reset=([a-f0-9]{64})/)[1];
-      const [[stored]]=await pool.execute('SELECT token_hash FROM password_reset_tokens WHERE user_id=?',[customer.user.id]);assert.notEqual(stored.token_hash,token);
+      const [[stored]]=await execute(pool,'SELECT token_hash FROM password_reset_tokens WHERE user_id=$1',[customer.user.id]);assert.notEqual(stored.token_hash,token);
       assert.equal((await request('/api/shop/reset-password',null,'POST',{token,password:'new-secret123'})).status,200);
       assert.equal((await request('/api/shop/reset-password',null,'POST',{token,password:'other-secret123'})).status,400);
       assert.equal((await request('/api/shop/orders',customer.token)).status,401);
@@ -172,7 +174,7 @@ test('ecommerce HTTP workflow uses isolated MySQL tables and protects checkout, 
   } finally {
     if(server)await new Promise(resolve=>server.close(resolve));
     if(pool)await pool.end();
-    await root.query(`DROP DATABASE IF EXISTS \`${database}\``);
+    await root.query(`DROP DATABASE IF EXISTS "${database}"`);
     await root.end();
     if(previousSecret===undefined)delete process.env.JWT_SECRET;else process.env.JWT_SECRET=previousSecret;
   }

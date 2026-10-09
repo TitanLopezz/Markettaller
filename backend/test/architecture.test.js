@@ -20,7 +20,7 @@ test('persistence adapters never import use cases or construct HTTP errors',()=>
 });
 test('port contracts are satisfied by the concrete repository adapters',()=>{
   const {assertPort}=require('../src/application/ports/contracts');
-  for(const [port,moduleName] of [['UserRepository','MySQLUserRepository'],['ProductRepository','MySQLProductRepository'],['ProviderOrderRepository','MySQLOrderRepository'],['ProductRequestRepository','MySQLProductRequestRepository'],['CommerceRepository','MySQLCommerceRepository']]){
+  for(const [port,moduleName] of [['UserRepository','PostgresUserRepository'],['ProductRepository','PostgresProductRepository'],['ProviderOrderRepository','PostgresOrderRepository'],['ProductRequestRepository','PostgresProductRequestRepository'],['CommerceRepository','PostgresCommerceRepository']]){
     const Adapter=require(`../src/infrastructure/repositories/${moduleName}`)[moduleName];
     assert.equal(assertPort(port,new Adapter({})).constructor,Adapter);
   }

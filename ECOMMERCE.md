@@ -66,11 +66,11 @@ FRONTEND_ORIGIN=https://tu-dominio
 
 Configurar un remitente autorizado y las credenciales en la instancia, nunca en Git ni en el chat. Ver [documentación de Resend](https://resend.com/docs/api-reference/emails/send-email). Sin esa configuración no se envían correos y la recuperación informa que el servicio no está disponible. Si falla un correo de pedido, el pedido se conserva y la notificación sigue en la cuenta; no hay cola automática de reenvío.
 
-Los enlaces de recuperación caducan en 30 minutos, solo se usan una vez, y se guardan en MySQL como hashes. Cambiar contraseña invalida las sesiones anteriores, incluidas las del portal interno. Hay limitación de intentos por IP para registro, login y recuperación; el limitador es local al único proceso backend.
+Los enlaces de recuperación caducan en 30 minutos, solo se usan una vez, y se guardan en PostgreSQL como hashes. Cambiar contraseña invalida las sesiones anteriores, incluidas las del portal interno. Hay limitación de intentos por IP para registro, login y recuperación; el limitador es local al único proceso backend.
 
 ## AWS, HTTPS y copias
 
-Ver [deploy/README.md](deploy/README.md). Los paquetes de release incluyen el nuevo esquema, backend, frontend y scripts de copia de MySQL y activación de HTTPS.
+Ver [deploy/README.md](deploy/README.md). Los paquetes de release incluyen el nuevo esquema, backend, frontend y scripts de copia de PostgreSQL y activación de HTTPS.
 
 En el frontend, después de configurar DNS y abrir 443 en su Security Group:
 
@@ -80,14 +80,14 @@ bash deploy/enable-https.sh tienda.ejemplo.com tu-email@ejemplo.com
 
 Actualizar `FRONTEND_ORIGIN=https://tienda.ejemplo.com` en el backend y repetir su script. Si se vuelve a ejecutar deploy-front.sh, se regenera la configuración HTTP: repetir también enable-https.sh. El certificado requiere un dominio real que apunte a la instancia. No está activado en AWS desde este entorno.
 
-En la instancia MySQL:
+En la instancia PostgreSQL:
 
 ```bash
 export DB_NAME=nombre_bd
 bash deploy/backup-db.sh
 ```
 
-Descargar el `.sql.gz` fuera del laboratorio. El archivo contiene datos personales y debe protegerse. La copia es manual; no se ha creado una tarea programada ni se ha contratado almacenamiento externo. Para restaurarla en una base destino preparada, comprobar primero que sea la base correcta y usar `gunzip -c copia.sql.gz | sudo mysql nombre_bd`. La restauración requiere una decisión explícita del operador y no se ejecuta durante los despliegues.
+Descargar el `.dump` fuera del laboratorio. El archivo contiene datos personales y debe protegerse. La copia es manual; no se ha creado una tarea programada ni se ha contratado almacenamiento externo. Para restaurarla en una base destino preparada, comprobar primero que sea la base correcta y usar `sudo -u postgres pg_restore --exit-on-error -d nombre_bd copia.dump`. La restauración requiere una decisión explícita del operador y no se ejecuta durante los despliegues.
 
 ## Validación local
 
@@ -98,4 +98,4 @@ npm --prefix frontend test
 node deploy/build.mjs
 ```
 
-Las pruebas de MySQL necesitan acceso local y permisos para crear/eliminar su base temporal. Los servicios Linux, DNS, certificados, recepción real de correo y entrega física deben comprobarse en el entorno final.
+Las pruebas de PostgreSQL necesitan acceso local y permisos para crear/eliminar su base temporal. Los servicios Linux, DNS, certificados, recepción real de correo y entrega física deben comprobarse en el entorno final.

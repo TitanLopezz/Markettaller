@@ -1,8 +1,8 @@
-const {MySQLUnitOfWork}=require('../src/infrastructure/database/MySQLUnitOfWork');
+const {PostgresUnitOfWork}=require('../src/infrastructure/database/PostgresUnitOfWork');
 const {createResolveProviderOrder}=require('../src/application/use-cases/resolveProviderOrder');
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { MySQLOrderRepository } = require('../src/infrastructure/repositories/MySQLOrderRepository');
+const { PostgresOrderRepository } = require('../src/infrastructure/repositories/PostgresOrderRepository');
 
 const createTransactionalPool = ({ stock = 5, orderStatus = 'pendiente' } = {}) => {
   const calls = {
@@ -38,12 +38,19 @@ const createTransactionalPool = ({ stock = 5, orderStatus = 'pendiente' } = {}) 
     },
   };
 
-  return { pool: { getConnection: async () => connection }, calls };
+  connection.query=async(sql,params)=>{
+ if(sql==='BEGIN')return connection.beginTransaction();
+ if(sql==='COMMIT')return connection.commit();
+ if(sql==='ROLLBACK')return connection.rollback();
+ const [result]=await connection.execute(sql,params);
+ return {command:sql.startsWith('SELECT')?'SELECT':'WRITE',rows:Array.isArray(result)?result:result.insertId?[{id:result.insertId}]:[],rowCount:result.affectedRows||1};
+ };
+ return {pool:{connect:async()=>connection},calls};
 };
 
 test('approving an order atomically deducts stock and resolves the order', async () => {
   const { pool, calls } = createTransactionalPool({ stock: 5 });
-  const resolve=createResolveProviderOrder({unitOfWork:new MySQLUnitOfWork(pool)});
+  const resolve=createResolveProviderOrder({unitOfWork:new PostgresUnitOfWork(pool)});
 
   const result = await resolve(10, 'aprobado');
 
@@ -57,7 +64,7 @@ test('approving an order atomically deducts stock and resolves the order', async
 
 test('an order cannot be approved when product stock is insufficient', async () => {
   const { pool, calls } = createTransactionalPool({ stock: 2 });
-  const resolve=createResolveProviderOrder({unitOfWork:new MySQLUnitOfWork(pool)});
+  const resolve=createResolveProviderOrder({unitOfWork:new PostgresUnitOfWork(pool)});
 
   await assert.rejects(
     resolve(10, 'aprobado'),
@@ -74,7 +81,7 @@ test('an order cannot be approved when product stock is insufficient', async () 
 
 test('rejecting an order leaves product stock unchanged', async () => {
   const { pool, calls } = createTransactionalPool({ stock: 5 });
-  const resolve=createResolveProviderOrder({unitOfWork:new MySQLUnitOfWork(pool)});
+  const resolve=createResolveProviderOrder({unitOfWork:new PostgresUnitOfWork(pool)});
 
   const result = await resolve(10, 'rechazado');
 

@@ -20,7 +20,7 @@ const createMemoryShop=()=>{
   const service=createCommerceUseCases({repository:repo,unitOfWork,crypto:{hash:value=>value},passwordHasher:{},mailer:{send:async()=>true},clock:{now:()=>new Date()},logger:{error:()=>{}},config:{payment_methods:['contra_entrega'],free_shipping_cents:5000,shipping_fee_cents:100}});
   return {service,state:()=>state};
 };
-test('checkout and cancellation work with memory ports, without MySQL, Express or real email',async()=>{
+test('checkout and cancellation work with memory ports, without Postgres, Express or real email',async()=>{
   const {service,state}=createMemoryShop();
   const body={items:[{product_id:1,quantity:2}],address,payment_method:'contra_entrega',request_key:'memory-request-key-001'};
   const order=await service.checkout(1,body);

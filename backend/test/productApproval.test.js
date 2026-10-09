@@ -1,10 +1,10 @@
-const {MySQLUnitOfWork}=require('../src/infrastructure/database/MySQLUnitOfWork');
+const {PostgresUnitOfWork}=require('../src/infrastructure/database/PostgresUnitOfWork');
 const {createResolveProductRequest}=require('../src/application/use-cases/resolveProductRequest');
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const { createCreateProductRequest } = require('../src/application/use-cases/createProductRequest');
 const { createUpdateProductRequestStatus } = require('../src/application/use-cases/updateProductRequestStatus');
-const { MySQLProductRequestRepository } = require('../src/infrastructure/repositories/MySQLProductRequestRepository');
+const { PostgresProductRequestRepository } = require('../src/infrastructure/repositories/PostgresProductRequestRepository');
 
 const createRequestRecord = (requestType, productId = null) => ({
   id: 5,
@@ -51,7 +51,14 @@ const createTransactionalPool = (request, deleteError = null) => {
     },
   };
 
-  return { pool: { getConnection: async () => connection }, calls };
+  connection.query=async(sql,params)=>{
+ if(sql==='BEGIN')return connection.beginTransaction();
+ if(sql==='COMMIT')return connection.commit();
+ if(sql==='ROLLBACK')return connection.rollback();
+ const [result]=await connection.execute(sql,params);
+ return {command:sql.startsWith('SELECT')?'SELECT':'WRITE',rows:Array.isArray(result)?result:result.insertId?[{id:result.insertId}]:[],rowCount:result.affectedRows||1};
+ };
+ return {pool:{connect:async()=>connection},calls};
 };
 
 test('manager create requests normalize product data without inserting a product', async () => {
@@ -96,7 +103,7 @@ test('manager create requests normalize product data without inserting a product
 
 test('approving a create request inserts the product and commits its status atomically', async () => {
   const { pool, calls } = createTransactionalPool(createRequestRecord('crear'));
-  const resolve=createResolveProductRequest({unitOfWork:new MySQLUnitOfWork(pool)});
+  const resolve=createResolveProductRequest({unitOfWork:new PostgresUnitOfWork(pool)});
 
   const result = await resolve(5, 'aprobado', 3);
 
@@ -110,7 +117,7 @@ test('approving a create request inserts the product and commits its status atom
 
 test('rejecting a delete request leaves the product untouched', async () => {
   const { pool, calls } = createTransactionalPool(createRequestRecord('eliminar', 17));
-  const resolve=createResolveProductRequest({unitOfWork:new MySQLUnitOfWork(pool)});
+  const resolve=createResolveProductRequest({unitOfWork:new PostgresUnitOfWork(pool)});
 
   const result = await resolve(5, 'rechazado', 3);
 
@@ -122,9 +129,9 @@ test('rejecting a delete request leaves the product untouched', async () => {
 });
 
 test('a product referenced by orders cannot be deleted through an approved request', async () => {
-  const deleteError = Object.assign(new Error('Foreign key constraint'), { code: 'ER_ROW_IS_REFERENCED_2' });
+  const deleteError = Object.assign(new Error('Foreign key constraint'), { code: '23503', table: 'products' });
   const { pool, calls } = createTransactionalPool(createRequestRecord('eliminar', 17), deleteError);
-  const resolve=createResolveProductRequest({unitOfWork:new MySQLUnitOfWork(pool)});
+  const resolve=createResolveProductRequest({unitOfWork:new PostgresUnitOfWork(pool)});
 
   await assert.rejects(
     resolve(5, 'aprobado', 3),

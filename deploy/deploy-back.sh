@@ -8,7 +8,7 @@ command -v node >/dev/null || { echo 'Instala Node.js 24 LTS y npm antes de cont
 node -e 'if(Number(process.versions.node.split(".")[0])<24)process.exit(1)'
 npm ci --omit=dev
 export DB_HOST DB_PASSWORD JWT_SECRET DB_NAME DB_USER FRONTEND_ORIGIN
-export DB_PORT=3306 PORT=3000 NODE_ENV=production
+export DB_PORT=5432 PORT=3000 NODE_ENV=production
 export TRUST_PROXY=1
 umask 077
 node <<'JS'

@@ -1,45 +1,51 @@
-const {MySQLUnitOfWork}=require('../src/infrastructure/database/MySQLUnitOfWork');
+const {PostgresUnitOfWork}=require('../src/infrastructure/database/PostgresUnitOfWork');
 const {createResolveProviderOrder}=require('../src/application/use-cases/resolveProviderOrder');
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
-const mysql = require('mysql2/promise');
-const { MySQLOrderRepository } = require('../src/infrastructure/repositories/MySQLOrderRepository');
+const {Client,Pool}=require('pg');
+require('../src/infrastructure/database/postgresPool');
+const {execute}=require('../src/infrastructure/database/persistenceErrors');
+const { PostgresOrderRepository } = require('../src/infrastructure/repositories/PostgresOrderRepository');
 
-require('dotenv').config({ path: path.join(__dirname, '../.env') });
-const hasDatabaseConfig = Boolean(process.env.DB_HOST && process.env.DB_USER && process.env.DB_NAME);
 
-test('MySQL order repository creates, joins, lists, resolves orders, and deducts approved quantities', {
+const hasDatabaseConfig = Boolean(process.env.PG_TEST_HOST && process.env.PG_TEST_USER);
+
+test('Postgres order repository creates, joins, lists, resolves orders, and deducts approved quantities', {
   skip: !hasDatabaseConfig,
 }, async () => {
-  const pool = mysql.createPool({
-    host: process.env.DB_HOST || '127.0.0.1',
-    port: Number(process.env.DB_PORT || 3306),
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME,
+  const database='orders_test_'+randomUUID().replaceAll('-','');
+  const admin=new Client({host:process.env.PG_TEST_HOST,port:Number(process.env.PG_TEST_PORT||5432),user:process.env.PG_TEST_USER,password:process.env.PG_TEST_PASSWORD||'',database:'postgres'});
+  await admin.connect();await admin.query('CREATE DATABASE "'+database+'"');
+  const pool = new Pool({
+    host: process.env.PG_TEST_HOST || '127.0.0.1',
+    port: Number(process.env.PG_TEST_PORT || 5432),
+    user: process.env.PG_TEST_USER,
+    password: process.env.PG_TEST_PASSWORD || '',
+    database,
   });
+  for(const file of ['schema.sql','commerce.sql'])await pool.query(await require('node:fs/promises').readFile(path.join(__dirname,'../src/infrastructure/database',file),'utf8'));
   let userId;
   let productId;
   const orderIds = [];
   try {
     const marker = randomUUID();
     const email = `orders-${marker}@example.test`;
-    const [userResult] = await pool.execute(
+    const [userResult] = await execute(pool,
       `INSERT INTO users (name, email, password_hash, role, status)
-       VALUES (?, ?, ?, 'proveedor', 'aprobado')`,
+       VALUES ($1, $2, $3, 'proveedor', 'aprobado') RETURNING id`,
       [`Integration ${marker}`, email, 'not-used-in-this-test'],
     );
     userId = userResult.insertId;
-    const [productResult] = await pool.execute(
+    const [productResult] = await execute(pool,
       `INSERT INTO products (nombre, descripcion, precio, categoria, imagen_url, stock)
-       VALUES (?, 'Test de integración', 1.00, 'Test', 'https://example.test/product.jpg', 5)`,
+       VALUES ($1, 'Test de integración', 1.00, 'Test', 'https://example.test/product.jpg', 5) RETURNING id`,
       [`Producto ${marker}`],
     );
     productId = productResult.insertId;
-    const repository = new MySQLOrderRepository(pool);
-    const resolve=createResolveProviderOrder({unitOfWork:new MySQLUnitOfWork(pool)});
+    const repository = new PostgresOrderRepository(pool);
+    const resolve=createResolveProviderOrder({unitOfWork:new PostgresUnitOfWork(pool)});
     const created = await repository.create({
       providerId: userId,
       productId: productResult.insertId,
@@ -60,7 +66,7 @@ test('MySQL order repository creates, joins, lists, resolves orders, and deducts
     const update = await resolve(created.id, 'aprobado');
     assert.equal(update.updated, true);
     assert.equal(update.status, 'aprobado');
-    const [[product]] = await pool.execute('SELECT stock FROM products WHERE id = ?', [productId]);
+    const [[product]] = await execute(pool,'SELECT stock FROM products WHERE id = $1', [productId]);
     assert.equal(product.stock, 2);
 
     const overStockOrder = await repository.create({
@@ -73,26 +79,27 @@ test('MySQL order repository creates, joins, lists, resolves orders, and deducts
       resolve(overStockOrder.id, 'aprobado'),
       { code: 'CONFLICT', message: 'Stock insuficiente para aprobar el pedido.' },
     );
-    const [[unchangedStockOrder]] = await pool.execute(
+    const [[unchangedStockOrder]] = await execute(pool,
       `SELECT p.stock, o.status
        FROM products p
        INNER JOIN orders o ON o.product_id = p.id
-       WHERE p.id = ? AND o.id = ?`,
+       WHERE p.id = $1 AND o.id = $2`,
       [productId, overStockOrder.id],
     );
     assert.equal(unchangedStockOrder.stock, 2);
     assert.equal(unchangedStockOrder.status, 'pendiente');
   } finally {
     if (orderIds.length) {
-      const placeholders = orderIds.map(() => '?').join(', ');
-      await pool.execute(`DELETE FROM orders WHERE id IN (${placeholders})`, orderIds);
+      const placeholders = orderIds.map((_,i) => '$'+(i+1)).join(', ');
+      await execute(pool,`DELETE FROM orders WHERE id IN (${placeholders})`, orderIds);
     }
     if (productId) {
-      await pool.execute('DELETE FROM products WHERE id = ?', [productId]);
+      await execute(pool,'DELETE FROM products WHERE id = $1', [productId]);
     }
     if (userId) {
-      await pool.execute('DELETE FROM users WHERE id = ?', [userId]);
+      await execute(pool,'DELETE FROM users WHERE id = $1', [userId]);
     }
     await pool.end();
+    await admin.query('DROP DATABASE "'+database+'"');await admin.end();
   }
 });

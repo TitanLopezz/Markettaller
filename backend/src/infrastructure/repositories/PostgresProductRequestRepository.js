@@ -2,7 +2,7 @@ const {execute}=require('../database/persistenceErrors');
 
 const parseProductData = (value) => (typeof value === 'string' ? JSON.parse(value) : value);
 
-class MySQLProductRequestRepository {
+class PostgresProductRequestRepository {
   constructor(pool) {
     this.pool = pool;
   }
@@ -10,7 +10,7 @@ class MySQLProductRequestRepository {
   async create({ requesterId, requestType, productId = null, productData }) {
     const [result] = await execute(this.pool,
       `INSERT INTO product_requests (requester_id, request_type, product_id, product_data)
-       VALUES (?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4) RETURNING id`,
       [requesterId, requestType, productId, JSON.stringify(productData)],
     );
 
@@ -27,7 +27,7 @@ class MySQLProductRequestRepository {
   async hasPendingDelete(productId) {
     const [rows] = await execute(this.pool,
       `SELECT id FROM product_requests
-       WHERE product_id = ? AND request_type = 'eliminar' AND status = 'pendiente'
+       WHERE product_id = $1 AND request_type = 'eliminar' AND status = 'pendiente'
        LIMIT 1`,
       [productId],
     );
@@ -48,9 +48,9 @@ class MySQLProductRequestRepository {
   }
 
   async lockById(id) {
-    const [rows]=await execute(this.pool,'SELECT id, request_type, product_id, product_data, status FROM product_requests WHERE id = ? FOR UPDATE',[id]);
+    const [rows]=await execute(this.pool,'SELECT id, request_type, product_id, product_data, status FROM product_requests WHERE id = $1 FOR UPDATE',[id]);
     return rows[0]?{...rows[0],product_data:parseProductData(rows[0].product_data)}:null;
   }
-  setStatus(id,status,reviewerId) {return execute(this.pool, 'UPDATE product_requests SET status = ?, reviewer_id = ?, reviewed_at = CURRENT_TIMESTAMP WHERE id = ? AND status = \'pendiente\'',[status,reviewerId,id]);}
+  setStatus(id,status,reviewerId) {return execute(this.pool, 'UPDATE product_requests SET status = $1, reviewer_id = $2, reviewed_at = CURRENT_TIMESTAMP WHERE id = $3 AND status = \'pendiente\'',[status,reviewerId,id]);}
 }
-module.exports={MySQLProductRequestRepository};
+module.exports={PostgresProductRequestRepository};

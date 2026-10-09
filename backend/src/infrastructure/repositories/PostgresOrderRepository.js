@@ -1,7 +1,7 @@
 const {execute}=require('../database/persistenceErrors');
 const { ORDER_STATUSES } = require('../../domain/order');
 
-class MySQLOrderRepository {
+class PostgresOrderRepository {
   constructor(pool) {
     this.pool = pool;
   }
@@ -9,12 +9,12 @@ class MySQLOrderRepository {
   async create({ providerId, productId, quantity }) {
     const [result] = await execute(this.pool,
       `INSERT INTO orders (user_id, product_id, quantity, status)
-       VALUES (?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4) RETURNING id`,
       [providerId, productId, quantity, ORDER_STATUSES.PENDING],
     );
     const [rows] = await execute(this.pool,
       `SELECT id, user_id, product_id, quantity, status, created_at
-       FROM orders WHERE id = ? LIMIT 1`,
+       FROM orders WHERE id = $1 LIMIT 1`,
       [result.insertId],
     );
     return rows[0];
@@ -26,7 +26,7 @@ class MySQLOrderRepository {
               p.nombre AS product_name, p.imagen_url AS product_image_url
        FROM orders o
        INNER JOIN products p ON p.id = o.product_id
-       WHERE o.user_id = ?
+       WHERE o.user_id = $1
        ORDER BY o.created_at DESC, o.id DESC`,
       [providerId],
     );
@@ -41,7 +41,7 @@ class MySQLOrderRepository {
        FROM orders o
        INNER JOIN users u ON u.id = o.user_id
        INNER JOIN products p ON p.id = o.product_id
-       WHERE o.status = ?
+       WHERE o.status = $1
        ORDER BY o.created_at ASC, o.id ASC`,
       [ORDER_STATUSES.PENDING],
     );
@@ -49,9 +49,9 @@ class MySQLOrderRepository {
   }
 
   async lockById(id) {
-    const [rows]=await execute(this.pool, 'SELECT id, product_id, quantity, status FROM orders WHERE id = ? FOR UPDATE',[id]);
+    const [rows]=await execute(this.pool, 'SELECT id, product_id, quantity, status FROM orders WHERE id = $1 FOR UPDATE',[id]);
     return rows[0] || null;
   }
-  setStatus(id,status) {return execute(this.pool,'UPDATE orders SET status = ? WHERE id = ? AND status = ?',[status,id,'pendiente']);}
+  setStatus(id,status) {return execute(this.pool,'UPDATE orders SET status = $1 WHERE id = $2 AND status = $3',[status,id,'pendiente']);}
 }
-module.exports={MySQLOrderRepository};
+module.exports={PostgresOrderRepository};

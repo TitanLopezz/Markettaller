@@ -4,8 +4,7 @@ source "$(dirname "$0")/common.sh"
 identifier "$DB_NAME"
 umask 077
 mkdir -p backups
-BACKUP="backups/${DB_NAME}-$(date -u +%Y%m%dT%H%M%SZ)-$$.sql.gz"
-sudo mysqldump --single-transaction --no-tablespaces "$DB_NAME" | gzip > "$BACKUP"
-test -s "$BACKUP"
-gzip -t "$BACKUP"
-echo "Copia creada: $BACKUP. Descárgala fuera del laboratorio para conservarla."
+BACKUP="backups/${DB_NAME}-$(date -u +%Y%m%dT%H%M%SZ)-$$.dump"
+sudo -u postgres pg_dump -Fc "$DB_NAME" > "$BACKUP"
+pg_restore --list "$BACKUP" >/dev/null
+echo "Copia creada: $BACKUP. Descárgala fuera del laboratorio."
