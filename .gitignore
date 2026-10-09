@@ -19,3 +19,4 @@ Thumbs.db
 release/
 runtime-env.json
 backups/
+private-data/

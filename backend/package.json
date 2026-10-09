@@ -6,8 +6,11 @@
     "start": "node server.js",
     "dev": "npm run db:setup && nodemon server.js",
     "test": "node --test",
+    "test:postgres": "node scripts/run-postgres-checks.js",
     "test:architecture": "node --test test/architecture.test.js",
     "db:setup": "node src/infrastructure/database/migrate.js",
+    "data:migrate": "node scripts/migrate-mysql-to-postgres.js",
+    "data:export": "node scripts/export-postgres-data.js",
     "admin:bootstrap": "node scripts/bootstrapSuperAdmin.js",
     "seed:superadmin": "node scripts/seed-superadmin.js"
   },
@@ -21,6 +24,7 @@
   },
   "devDependencies": {
     "esbuild": "^0.28.2",
+    "mysql2": "^3.24.5",
     "nodemon": "^3.1.14"
   }
 }

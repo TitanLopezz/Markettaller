@@ -27,6 +27,10 @@ for(const [name,files] of Object.entries({backend:['common.sh','deploy-back.sh',
   await writeFile(path.join(output,name,'.gitignore'),'node_modules/\n.env\n.env.*\nruntime-env.json\nbackups/\n*.log\n');
 }
 await writeFile(path.join(output,'database/deploy/schema.sql'),await readFile(path.join(root,'backend/src/infrastructure/database/schema.sql'),'utf8')+'\n'+await readFile(path.join(root,'backend/src/infrastructure/database/commerce.sql'),'utf8'));
+try {
+  await copyFile(path.join(root,'private-data/initial-data.sql'),path.join(output,'database/deploy/initial-data.sql'));
+  console.log('Paquete de BD incluye datos privados de migración; no publicarlo en Git.');
+} catch(error) { if(error.code!=='ENOENT')throw error; }
 async function scan(dir){for(const f of await readdir(dir,{withFileTypes:true})){const p=path.join(dir,f.name);if(f.isDirectory())await scan(p);else if(/\.(js|html|css)$/.test(f.name)&&/localhost|127\.0\.0\.1|VITE_API_URL/.test(await readFile(p,'utf8')))throw Error('Referencia local en frontend: '+p);}}
 await scan(path.join(output,'frontend/dist'));
 console.log('Artefactos listos en release/backend, release/frontend y release/database');

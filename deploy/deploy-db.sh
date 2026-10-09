@@ -21,6 +21,15 @@ SELECT format('CREATE DATABASE %I', :'app_db') WHERE NOT EXISTS (SELECT 1 FROM p
 SQL
 } | sudo -u postgres psql -v ON_ERROR_STOP=1 -v app_user="$DB_USER" -v app_db="$DB_NAME"
 sudo -u postgres psql -v ON_ERROR_STOP=1 --single-transaction -d "$DB_NAME" -f deploy/schema.sql
+if [[ -f deploy/initial-data.sql ]]; then
+  HAS_DATA=$(sudo -u postgres psql -At -v ON_ERROR_STOP=1 -d "$DB_NAME" -c 'SELECT EXISTS(SELECT 1 FROM users) OR EXISTS(SELECT 1 FROM products)')
+  if [[ "$HAS_DATA" == f ]]; then
+    sudo -u postgres psql -v ON_ERROR_STOP=1 --single-transaction -d "$DB_NAME" -f deploy/initial-data.sql
+    echo 'Datos originales importados.'
+  else
+    echo 'La base ya contiene datos; se conserva su contenido y se omite la importación.'
+  fi
+fi
 sudo -u postgres psql -v ON_ERROR_STOP=1 -d "$DB_NAME" -v app_user="$DB_USER" <<'SQL'
 GRANT CONNECT ON DATABASE :"DBNAME" TO :"app_user";
 GRANT USAGE ON SCHEMA public TO :"app_user";

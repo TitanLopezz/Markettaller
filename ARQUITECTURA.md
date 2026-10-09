@@ -88,4 +88,4 @@ Las pruebas de arquitectura revisan las importaciones y bloquean dependencias de
 
 Las pruebas con puertos en memoria ejecutan compra, cancelación, reglas de envío, carrito e idempotencia sin servicios externos. Las de integración usan PostgreSQL y Express; ambas crean una base temporal y la eliminan al terminar. Se habilitan con PG_TEST_HOST, PG_TEST_PORT, PG_TEST_USER y PG_TEST_PASSWORD, sin leer backend/.env.
 
-La migración a PostgreSQL conserva las URLs de API, roles y reglas de pago. Los esquemas SQL y los adaptadores ahora corresponden a PostgreSQL. El despliegue de AWS sigue usando tres paquetes de release, que deben regenerarse; los registros existentes en MySQL no se transfieren automáticamente.
+La migración a PostgreSQL conserva las URLs de API, roles y reglas de pago. Los esquemas SQL y los adaptadores corresponden a PostgreSQL. Los datos locales de MySQL ya se transfirieron; la herramienta de migración y exportación mantiene las copias privadas fuera de Git. El despliegue usa tres paquetes de release y el de BD incluye los datos iniciales cuando existe la exportación privada.

@@ -48,7 +48,7 @@ bash deploy/deploy-db.sh
 unset DB_PASSWORD
 ```
 
-La contraseña se solicita de nuevo al repetir el script: usar la misma para conservar acceso del backend. El esquema no borra tablas ni carga datos personales locales. Para evidencias, ejecutar en esta instancia `sudo -u postgres psql -d nombre_bd -c '\dt'`. El usuario app tiene permisos de datos y secuencias. pg_hba.conf permite autenticación SCRAM desde el CIDR de la VPC. Para esta práctica el profesor pidió Anywhere-IPv4 en los puertos de los SG; el tráfico interno usa IPs privadas.
+La contraseña se solicita de nuevo al repetir el script: usar la misma para conservar acceso del backend. El esquema no borra tablas. Si el paquete incluye `deploy/initial-data.sql`, el script importa los datos en una base vacía dentro de una transacción. Si ya existen usuarios o productos, conserva el contenido y omite la importación. Para evidencias, ejecutar `sudo -u postgres psql -d nombre_bd -c '\dt'`. El usuario app tiene permisos de datos y secuencias. pg_hba.conf permite autenticación SCRAM desde el CIDR de la VPC. Los puertos de los SG usan Anywhere-IPv4 por requisito del profesor; el tráfico interno usa IPs privadas.
 
 ## 2. Backend
 
@@ -108,9 +108,13 @@ Los scripts `deploy/enable-https.sh` (frontend) y `deploy/backup-db.sh` (base de
 
 ## Migración desde la versión MySQL
 
-El backend ahora usa pg y PostgreSQL (puerto 5432). Los ZIP anteriores deben reemplazarse. Los esquemas son para PostgreSQL; no ejecutarlos en MySQL. Esta adaptación no copia automáticamente los registros de la base MySQL local: dicha base se conserva intacta. El despliegue nuevo crea tablas vacías y el Super Admin se genera mediante el bootstrap. Si necesitas conservar el catálogo y las cuentas existentes, realiza una migración de datos separada antes de usar el sistema.
+El backend usa pg y PostgreSQL (puerto 5432). Los ZIP anteriores deben reemplazarse. Los esquemas son para PostgreSQL; no ejecutarlos en MySQL. Se transfirieron los datos locales conservando los IDs, hashes de contraseñas, imágenes, fechas y relaciones. MySQL permanece intacto. `private-data/` guarda el respaldo original, el SQL exportado y un manifiesto de conteos, fuera de Git. `node deploy/build.mjs` incluye el SQL privado en database.zip cuando existe. Ese ZIP contiene datos de cuentas: subirlo únicamente a tu EC2, sin publicarlo en GitHub.
+
+Para repetir la migración en otra base PostgreSQL vacía, configurar `MYSQL_SOURCE_PASSWORD` localmente y ejecutar `npm --prefix backend run data:migrate`. El destino debe estar vacío; la operación se revierte ante errores. mysql2 es solo una dependencia de desarrollo para esta herramienta y no forma parte del backend de producción. Para actualizar la copia de datos después de cambios locales, ejecutar `npm --prefix backend run data:export` antes del build. PG_DUMP_BIN permite indicar la ruta de pg_dump cuando difiere del valor predeterminado.
 
 Para desarrollo, ajusta backend/.env a tu PostgreSQL local: DB_HOST, DB_PORT=5432, DB_USER, DB_PASSWORD y DB_NAME. No reutilices la conexión MySQL. npm run db:setup requiere un usuario con permiso CREATEDB y permisos de esquema; el usuario app de AWS tiene únicamente permisos de datos.
+
+Con la conexión local ya preparada, `npm --prefix backend run test:postgres` ejecuta las pruebas completas, incluyendo las bases temporales de integración, sin escribir la contraseña en el comando. Para evidencias, capturar el resumen de 38 pruebas aprobadas, el build y los ZIP regenerados. Los datos locales migrados suman 16 registros entre 6 usuarios, 3 productos, 2 pedidos de proveedores, 1 solicitud, 1 compra, 2 artículos y 1 notificación. `initial-data.sql` preserva IDs, hashes de contraseñas y secuencias. El bootstrap del Super Admin es opcional si se conserva la cuenta migrada; no ejecutarlo para cambiar credenciales inadvertidamente.
 
 Pruebas de integración desde PowerShell, usando un PostgreSQL dedicado para pruebas:
 

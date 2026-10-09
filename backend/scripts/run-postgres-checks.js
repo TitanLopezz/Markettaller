@@ -1,0 +1,9 @@
+const path=require('node:path');
+const {spawnSync}=require('node:child_process');
+const fs=require('node:fs');
+const dotenv=require('dotenv');
+const root=path.resolve(__dirname,'..');
+const config=dotenv.parse(fs.readFileSync(path.join(root,'.env')));
+const env={...process.env,PG_TEST_HOST:config.DB_HOST,PG_TEST_PORT:config.DB_PORT||'5432',PG_TEST_USER:config.DB_USER,PG_TEST_PASSWORD:config.DB_PASSWORD||''};
+const result=spawnSync(process.execPath,['--test'],{cwd:root,env,stdio:'inherit'});
+process.exitCode=result.status??1;
