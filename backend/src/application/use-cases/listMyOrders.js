@@ -1,4 +1,4 @@
-const { parsePositiveId } = require('./orderInput');
+const { parsePositiveId } = require('../../domain/orderInput');
 
 const createListMyOrders = ({ orderRepository }) => async (providerId) => {
   const validatedProviderId = parsePositiveId(providerId, 'Proveedor');

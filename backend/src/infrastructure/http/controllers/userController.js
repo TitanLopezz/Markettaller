@@ -1,15 +1,11 @@
-const handleError = (res, error) => {
-  const statusCode = error.statusCode || 500;
-  const message = statusCode === 500 ? 'Error interno del servidor.' : error.message;
-  return res.status(statusCode).json({ message });
-};
+const {handleError}=require('../errorResponse');
 
 const createUserController = ({ registerUser, loginUser, listPendingUsers, updateUserStatus }) => ({
   register: async (req, res) => {
     try {
       const user = await registerUser(req.body);
       return res.status(201).json({
-        message: 'Registro recibido. La cuenta está pendiente de autorización.',
+        message: user.role === 'cliente' ? 'Cuenta creada. Ya puedes iniciar sesión.' : 'Registro recibido. La cuenta está pendiente de autorización.',
         user,
       });
     } catch (error) {

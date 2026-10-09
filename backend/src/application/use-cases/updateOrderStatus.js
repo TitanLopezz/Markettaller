@@ -1,24 +1,24 @@
 const { RESOLVED_ORDER_STATUSES } = require('../../domain/order');
-const { parsePositiveId } = require('./orderInput');
+const { parsePositiveId } = require('../../domain/orderInput');
 
-const createUpdateOrderStatus = ({ orderRepository }) => async ({ id, status }) => {
+const createUpdateOrderStatus = ({ resolveProviderOrder }) => async ({ id, status }) => {
   const orderId = parsePositiveId(id, 'Pedido');
   if (!RESOLVED_ORDER_STATUSES.includes(status)) {
     const error = new Error('El estado debe ser aprobado o rechazado.');
-    error.statusCode = 400;
+    error.code = 'VALIDATION';
     throw error;
   }
 
-  const result = await orderRepository.updatePendingStatus(orderId, status);
+  const result = await resolveProviderOrder(orderId, status);
   if (!result) {
     const error = new Error('Pedido no encontrado.');
-    error.statusCode = 404;
+    error.code = 'NOT_FOUND';
     throw error;
   }
 
   if (!result.updated) {
     const error = new Error('El pedido ya no está pendiente.');
-    error.statusCode = 409;
+    error.code = 'CONFLICT';
     throw error;
   }
 

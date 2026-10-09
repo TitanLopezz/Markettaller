@@ -25,6 +25,7 @@ const run = async () => {
     await connection.changeUser({ database });
     const schema = await fs.readFile(path.join(__dirname, 'schema.sql'), 'utf8');
     await connection.query(schema);
+    await connection.query(await fs.readFile(path.join(__dirname, 'commerce.sql'), 'utf8'));
     console.log(`Base de datos ${database} y tabla users listas.`);
   } finally {
     await connection.end();

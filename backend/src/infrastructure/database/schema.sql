@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS users (
   name VARCHAR(120) NOT NULL,
   email VARCHAR(254) NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
-  role ENUM('gestor', 'proveedor', 'super_admin') NOT NULL,
+  role ENUM('gestor', 'proveedor', 'super_admin', 'cliente') NOT NULL,
   status ENUM('pendiente', 'aprobado', 'rechazado') NOT NULL DEFAULT 'pendiente',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 ALTER TABLE users
-  MODIFY COLUMN role ENUM('gestor', 'proveedor', 'super_admin') NOT NULL;
+  MODIFY COLUMN role ENUM('gestor', 'proveedor', 'super_admin', 'cliente') NOT NULL;
 
 CREATE TABLE IF NOT EXISTS products (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

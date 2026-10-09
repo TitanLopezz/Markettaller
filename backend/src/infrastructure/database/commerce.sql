@@ -1,0 +1,74 @@
+CREATE TABLE IF NOT EXISTS user_security (
+  user_id BIGINT UNSIGNED PRIMARY KEY,
+  version INT UNSIGNED NOT NULL DEFAULT 0,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS customer_addresses (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  address JSON NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS shop_orders (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  request_key VARCHAR(64) CHARACTER SET ascii NOT NULL,
+  request_hash CHAR(64) CHARACTER SET ascii NOT NULL,
+  currency CHAR(3) NOT NULL DEFAULT 'MXN',
+  subtotal_cents BIGINT UNSIGNED NOT NULL,
+  shipping_cents BIGINT UNSIGNED NOT NULL,
+  total_cents BIGINT UNSIGNED NOT NULL,
+  address JSON NOT NULL,
+  payment_method ENUM('contra_entrega','transferencia') NOT NULL,
+  payment_status ENUM('pendiente','pagado','reembolsado') NOT NULL DEFAULT 'pendiente',
+  status ENUM('recibido','confirmado','preparando','enviado','entregado','cancelado') NOT NULL DEFAULT 'recibido',
+  carrier VARCHAR(120) NULL,
+  tracking_number VARCHAR(160) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY shop_idempotency (user_id, request_key),
+  INDEX shop_history (user_id, created_at),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS shop_order_items (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  order_id BIGINT UNSIGNED NOT NULL,
+  product_id BIGINT UNSIGNED NULL,
+  product_name VARCHAR(160) NOT NULL,
+  image_url TEXT NULL,
+  quantity INT UNSIGNED NOT NULL,
+  unit_price_cents BIGINT UNSIGNED NOT NULL,
+  FOREIGN KEY (order_id) REFERENCES shop_orders(id) ON DELETE CASCADE,
+  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS shop_notifications (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  order_id BIGINT UNSIGNED NULL,
+  message VARCHAR(500) NOT NULL,
+  is_read BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (order_id) REFERENCES shop_orders(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  token_hash CHAR(64) CHARACTER SET ascii PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  expires_at DATETIME NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS shop_fulfillment (
+  order_id BIGINT UNSIGNED PRIMARY KEY,
+  instructions TEXT NOT NULL,
+  updated_by BIGINT UNSIGNED NOT NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (order_id) REFERENCES shop_orders(id) ON DELETE CASCADE,
+  FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

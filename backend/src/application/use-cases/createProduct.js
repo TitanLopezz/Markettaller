@@ -1,4 +1,4 @@
-const { normalizeProductInput } = require('./productInput');
+const { normalizeProductInput } = require('../../domain/productInput');
 
 const createCreateProduct = ({ productRepository }) => async (input) => {
   const product = normalizeProductInput(input);

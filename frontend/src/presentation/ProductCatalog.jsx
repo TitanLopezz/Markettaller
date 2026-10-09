@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react'
-import { getApiErrorMessage } from './apiError'
-import { ORDERS_API_URL, PRODUCTS_API_URL } from './api'
+import { getApiErrorMessage } from '../apiError'
+import {portal} from '../bootstrap/services.js'
+import ProductImage from './ProductImage'
+import { isWebImageUrl, normalizeImageUrl, validateImageUrl } from '../imageUrl'
 
-const BROKEN_MOUSE_IMAGE_URL = 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Computer_mouse.svg/200px-Computer_mouse.svg.png'
-const MOUSE_IMAGE_FALLBACK_URL = 'https://commons.wikimedia.org/wiki/Special:FilePath/Computer_mouse.svg?width=200'
-const HEADPHONES_IMAGE_FALLBACK_URL = 'https://thumb.wikimedia.org/wikipedia/commons/thumb/4/40/Headphones_1.jpg/500px-Headphones_1.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail'
 const EMPTY_PRODUCT = {
   nombre: '',
   descripcion: '',
@@ -19,40 +18,7 @@ function roleKey(role) {
   return String(role || '').trim().toLowerCase().replace(/[\s-]+/g, '_')
 }
 
-const isWebImageUrl = (value) => {
-  try {
-    const protocol = new URL(value).protocol
-    return protocol === 'http:' || protocol === 'https:'
-  } catch {
-    return false
-  }
-}
-
-function ProductImage({ src, alt }) {
-  const [failedSource, setFailedSource] = useState('')
-  const source = typeof src === 'string' ? src.trim() : ''
-
-  if (!isWebImageUrl(source) || failedSource === source) {
-    const message = source ? 'Imagen no disponible' : 'Sin imagen'
-    return (
-      <div className="product-image product-image-empty" role="img" aria-label={`${alt}: ${message}`}>
-        {message}
-      </div>
-    )
-  }
-
-  return (
-    <img
-      className="product-image"
-      src={source}
-      alt={alt}
-      loading="lazy"
-      onError={() => setFailedSource(source)}
-    />
-  )
-}
-
-function ProductCatalog({ user, token, onLogout, onManageRequests, onViewOrders }) {
+function ProductCatalog({ user, token, onLogout, onManageRequests, onViewOrders, onShop, onSales }) {
   const role = roleKey(user?.role)
   const canManageProducts = ['gestor', 'gestor_de_productos', 'super_admin'].includes(role)
   const isSuperAdmin = role === 'super_admin'
@@ -80,15 +46,7 @@ function ProductCatalog({ user, token, onLogout, onManageRequests, onViewOrders 
       setError('')
 
       try {
-        const response = await fetch(PRODUCTS_API_URL, {
-          headers: { Authorization: `Bearer ${token}` },
-          signal: controller.signal,
-        })
-        const result = await response.json().catch(() => ({}))
-
-        if (!response.ok) {
-          throw new Error(result.message || 'No se pudo cargar el catálogo.')
-        }
+        const result=await portal.products({token,signal:controller.signal})
 
         setProducts(Array.isArray(result) ? result : [])
       } catch (requestError) {
@@ -144,21 +102,10 @@ function ProductCatalog({ user, token, onLogout, onManageRequests, onViewOrders 
     setNotice('')
 
     try {
-      const response = await fetch(editingId ? `${PRODUCTS_API_URL}/${editingId}` : PRODUCTS_API_URL, {
-        method: editingId ? 'PUT' : 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ ...form, precio: Number(form.precio), stock: Number(form.stock) }),
-      })
-      const result = await response.json().catch(() => ({}))
+      const imagenUrl = await validateImageUrl(form.imagen_url)
+      const result=await portal.saveProduct(editingId,{...form,imagen_url:imagenUrl,precio:Number(form.precio),stock:Number(form.stock)},{token})
 
-      if (!response.ok) {
-        throw new Error(result.message || 'No se pudo guardar el producto.')
-      }
-
-      if (response.status === 202) {
+      if (result.pending) {
         setNotice(result.message || 'Solicitud enviada al Super Admin para aprobación.')
         resetForm()
         return
@@ -187,17 +134,9 @@ function ProductCatalog({ user, token, onLogout, onManageRequests, onViewOrders 
     setNotice('')
 
     try {
-      const response = await fetch(`${PRODUCTS_API_URL}/${product.id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      const result = await response.json().catch(() => ({}))
+      const result=await portal.deleteProduct(product.id,{token})
 
-      if (!response.ok) {
-        throw new Error(result.message || 'No se pudo eliminar el producto.')
-      }
-
-      if (response.status === 202) {
+      if (result.pending) {
         setNotice(result.message || 'Solicitud de eliminación enviada al Super Admin.')
         return
       }
@@ -221,19 +160,7 @@ function ProductCatalog({ user, token, onLogout, onManageRequests, onViewOrders 
     setNotice('')
 
     try {
-      const response = await fetch(ORDERS_API_URL, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ product_id: orderProduct.id, quantity: Number(orderQuantity) }),
-      })
-      const result = await response.json().catch(() => ({}))
-
-      if (!response.ok) {
-        throw new Error(result.message || 'No se pudo enviar la solicitud.')
-      }
+      await portal.createProviderOrder({product_id:orderProduct.id,quantity:Number(orderQuantity)},{token})
 
       setNotice(`Solicitud de ${orderProduct.nombre} enviada para aprobación.`)
       setOrderProduct(null)
@@ -255,9 +182,11 @@ function ProductCatalog({ user, token, onLogout, onManageRequests, onViewOrders 
             <p className="catalog-user">{user?.name} · {user?.email}</p>
           </div>
           <nav className="catalog-nav" aria-label="Acciones de cuenta">
+            <button type="button" className="secondary-btn" onClick={onShop}>Ver tienda</button>
+            {canManageProducts && <button type="button" className="primary-btn" onClick={onSales}>{isSuperAdmin?'Ventas y entregas':'Compras y despachos'}</button>}
             {isSuperAdmin && (
               <button type="button" className="secondary-btn" onClick={onManageRequests}>
-                Solicitudes
+                Panel Super Admin
               </button>
             )}
             {isProvider && (
@@ -322,6 +251,7 @@ function ProductCatalog({ user, token, onLogout, onManageRequests, onViewOrders 
               <label>
                 URL de imagen
                 <input name="imagen_url" type="url" value={form.imagen_url} onChange={updateField} />
+                <small>Pega el enlace directo de la foto. Los enlaces de Google Imágenes se convierten automáticamente.</small>
               </label>
             </div>
             {form.imagen_url.trim() && (
@@ -335,7 +265,8 @@ function ProductCatalog({ user, token, onLogout, onManageRequests, onViewOrders 
                 ) : (
                   <img
                     className="product-form-image-preview"
-                    src={form.imagen_url.trim()}
+                    src={normalizeImageUrl(form.imagen_url)}
+                    referrerPolicy="no-referrer"
                     alt={form.nombre ? `Vista previa: ${form.nombre}` : 'Vista previa del producto'}
                     onError={() => setImagePreviewFailed(true)}
                   />
@@ -355,14 +286,9 @@ function ProductCatalog({ user, token, onLogout, onManageRequests, onViewOrders 
         ) : (
           <div className="product-grid">
             {products.map((product) => {
-              const productName = product.nombre.trim().toLocaleLowerCase('es').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-              const imageUrl = product.imagen_url === BROKEN_MOUSE_IMAGE_URL
-                ? MOUSE_IMAGE_FALLBACK_URL
-                : product.imagen_url || (productName === 'audifonos' ? HEADPHONES_IMAGE_FALLBACK_URL : '')
-
               return (
                 <article className="product-card" key={product.id}>
-                  <ProductImage src={imageUrl} alt={product.nombre} />
+                  <ProductImage src={product.imagen_url} alt={product.nombre} />
                 <div className="product-card-body">
                   <p className="product-category">{product.categoria}</p>
                   <h2>{product.nombre}</h2>

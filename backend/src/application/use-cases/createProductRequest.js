@@ -1,4 +1,4 @@
-const { normalizeProductInput, parseProductId } = require('./productInput');
+const { normalizeProductInput, parseProductId } = require('../../domain/productInput');
 
 const createCreateProductRequest = ({ productRepository, productRequestRepository }) => async ({
   requesterId,
@@ -16,7 +16,7 @@ const createCreateProductRequest = ({ productRepository, productRequestRepositor
 
   if (requestType !== 'eliminar') {
     const error = new Error('El tipo de solicitud no es válido.');
-    error.statusCode = 400;
+    error.code = 'VALIDATION';
     throw error;
   }
 
@@ -24,13 +24,13 @@ const createCreateProductRequest = ({ productRepository, productRequestRepositor
   const existingProduct = await productRepository.findById(id);
   if (!existingProduct) {
     const error = new Error('Producto no encontrado.');
-    error.statusCode = 404;
+    error.code = 'NOT_FOUND';
     throw error;
   }
 
   if (await productRequestRepository.hasPendingDelete(id)) {
     const error = new Error('Ya existe una solicitud de eliminación pendiente para este producto.');
-    error.statusCode = 409;
+    error.code = 'CONFLICT';
     throw error;
   }
 

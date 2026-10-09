@@ -1,3 +1,6 @@
+const {BcryptPasswordHasher}=require('../src/infrastructure/services/BcryptPasswordHasher');
+const {NodeCryptoService}=require('../src/infrastructure/services/NodeCryptoService');
+const {JwtTokenService}=require('../src/infrastructure/services/JwtTokenService');
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const bcrypt = require('bcryptjs');
@@ -11,7 +14,7 @@ const { createCreateOrder } = require('../src/application/use-cases/createOrder'
 
 test('registration hashes the password and creates a pending user with the selected role', async () => {
   let persistedUser;
-  const registerUser = createRegisterUser({
+  const registerUser = createRegisterUser({ passwordHasher:new BcryptPasswordHasher(),crypto:new NodeCryptoService(),
     userRepository: {
       create: async (user) => {
         persistedUser = user;
@@ -47,11 +50,11 @@ test('pending users are denied and approved users receive a signed token', async
       status,
     }),
   };
-  const loginUser = createLoginUser({ userRepository, jwtSecret: 'test-secret' });
+  const loginUser = createLoginUser({ userRepository,passwordHasher:new BcryptPasswordHasher(),tokenService:new JwtTokenService('test-secret') });
 
   await assert.rejects(
     loginUser({ email: 'ada@example.com', password: 'secret123' }),
-    { statusCode: 403, message: 'Cuenta pendiente de autorización' },
+    { code: 'FORBIDDEN', message: 'Cuenta pendiente de autorización' },
   );
 
   status = 'aprobado';
@@ -135,7 +138,7 @@ test('product creation validates values and passes normalized fields to the repo
 
   await assert.rejects(
     createProduct({ nombre: 'Café', categoria: 'Bebidas', precio: -1, stock: 1 }),
-    { statusCode: 400 },
+    { code: 'VALIDATION' },
   );
 
   const productWithImage = await createProduct({
@@ -149,11 +152,11 @@ test('product creation validates values and passes normalized fields to the repo
 
   await assert.rejects(
     createProduct({ nombre: 'Teclado', categoria: 'Tecnología', precio: 20, stock: 1, imagen_url: 'javascript:alert(1)' }),
-    { statusCode: 400, message: 'La URL de imagen debe usar HTTP o HTTPS.' },
+    { code: 'VALIDATION', message: 'La URL de imagen debe usar HTTP o HTTPS.' },
   );
   await assert.rejects(
     createProduct({ nombre: 'Teclado', categoria: 'Tecnología', precio: 20, stock: 1, imagen_url: 'not a URL' }),
-    { statusCode: 400 },
+    { code: 'VALIDATION' },
   );
 });
 
@@ -247,7 +250,7 @@ test('order creation validates quantity and always starts pending', async () => 
   assert.equal(savedOrder.status, 'pendiente');
   await assert.rejects(
     createOrder({ providerId: 12, productId: 8, quantity: 0 }),
-    { statusCode: 400 },
+    { code: 'VALIDATION' },
   );
 });
 

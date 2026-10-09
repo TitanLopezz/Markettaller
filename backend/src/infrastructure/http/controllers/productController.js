@@ -1,10 +1,4 @@
-const handleError = (res, error) => {
-  const statusCode = error.statusCode || 500;
-  const message = statusCode === 500 ? 'Error interno del servidor.' : error.message;
-  return res.status(statusCode).json({ message });
-};
-
-const normalizeRole = (role) => String(role || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+const {handleError}=require('../errorResponse');
 
 const createProductController = ({
   listProducts,
@@ -14,6 +8,7 @@ const createProductController = ({
   createProductRequest,
   listPendingProductRequests,
   updateProductRequestStatus,
+  submitProductChange,
 }) => ({
   list: async (req, res) => {
     try {
@@ -24,18 +19,14 @@ const createProductController = ({
   },
   create: async (req, res) => {
     try {
-      if (normalizeRole(req.user.role) !== 'super_admin') {
-        const request = await createProductRequest({
-          requesterId: req.user.id,
-          requestType: 'crear',
-          product: req.body,
-        });
+      const change=await submitProductChange({actor:req.user,requestType:'crear',product:req.body});
+      if (change.pending) {
         return res.status(202).json({
           message: 'Solicitud de alta enviada al Super Admin.',
-          request,
+          request:change.request,
         });
       }
-      return res.status(201).json({ product: await createProduct(req.body) });
+      return res.status(201).json({ product:change.product });
     } catch (error) {
       return handleError(res, error);
     }
@@ -49,18 +40,14 @@ const createProductController = ({
   },
   delete: async (req, res) => {
     try {
-      if (normalizeRole(req.user.role) !== 'super_admin') {
-        const request = await createProductRequest({
-          requesterId: req.user.id,
-          requestType: 'eliminar',
-          productId: req.params.id,
-        });
+      const change=await submitProductChange({actor:req.user,requestType:'eliminar',productId:req.params.id});
+      if (change.pending) {
         return res.status(202).json({
           message: 'Solicitud de eliminación enviada al Super Admin.',
-          request,
+          request:change.request,
         });
       }
-      const result = await deleteProduct(req.params.id);
+      const result = change.result;
       return res.json({ message: 'Producto eliminado.', ...result });
     } catch (error) {
       return handleError(res, error);

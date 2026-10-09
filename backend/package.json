@@ -6,6 +6,7 @@
     "start": "node server.js",
     "dev": "npm run db:setup && nodemon server.js",
     "test": "node --test",
+    "test:architecture": "node --test test/architecture.test.js",
     "db:setup": "node src/infrastructure/database/migrate.js",
     "admin:bootstrap": "node scripts/bootstrapSuperAdmin.js",
     "seed:superadmin": "node scripts/seed-superadmin.js"
@@ -19,6 +20,7 @@
     "mysql2": "^3.14.3"
   },
   "devDependencies": {
+    "esbuild": "^0.28.2",
     "nodemon": "^3.1.14"
   }
 }

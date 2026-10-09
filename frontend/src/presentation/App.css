@@ -647,6 +647,14 @@ button:disabled {
   background: #e8efea;
 }
 
+.order-mini-image-empty {
+  display: grid;
+  place-items: center;
+  font-size: 9px;
+  text-align: center;
+  overflow: hidden;
+}
+
 @media (max-width: 520px) {
   .card {
     padding: 26px 22px;

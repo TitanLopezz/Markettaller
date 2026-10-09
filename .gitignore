@@ -16,3 +16,6 @@ dist-ssr/
 # Archivos del sistema
 .DS_Store
 Thumbs.db
+release/
+runtime-env.json
+backups/

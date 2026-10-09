@@ -1,3 +1,5 @@
+const {MySQLUnitOfWork}=require('../src/infrastructure/database/MySQLUnitOfWork');
+const {createResolveProviderOrder}=require('../src/application/use-cases/resolveProviderOrder');
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const { MySQLOrderRepository } = require('../src/infrastructure/repositories/MySQLOrderRepository');
@@ -41,9 +43,9 @@ const createTransactionalPool = ({ stock = 5, orderStatus = 'pendiente' } = {}) 
 
 test('approving an order atomically deducts stock and resolves the order', async () => {
   const { pool, calls } = createTransactionalPool({ stock: 5 });
-  const repository = new MySQLOrderRepository(pool);
+  const resolve=createResolveProviderOrder({unitOfWork:new MySQLUnitOfWork(pool)});
 
-  const result = await repository.updatePendingStatus(10, 'aprobado');
+  const result = await resolve(10, 'aprobado');
 
   assert.deepEqual(result, { updated: true, id: 10, status: 'aprobado' });
   assert.deepEqual(calls.stockUpdates, [[3, 20, 3]]);
@@ -55,11 +57,11 @@ test('approving an order atomically deducts stock and resolves the order', async
 
 test('an order cannot be approved when product stock is insufficient', async () => {
   const { pool, calls } = createTransactionalPool({ stock: 2 });
-  const repository = new MySQLOrderRepository(pool);
+  const resolve=createResolveProviderOrder({unitOfWork:new MySQLUnitOfWork(pool)});
 
   await assert.rejects(
-    repository.updatePendingStatus(10, 'aprobado'),
-    { statusCode: 409, message: 'Stock insuficiente para aprobar el pedido.' },
+    resolve(10, 'aprobado'),
+    { code: 'CONFLICT', message: 'Stock insuficiente para aprobar el pedido.' },
   );
 
   assert.equal(calls.readStock, true);
@@ -72,9 +74,9 @@ test('an order cannot be approved when product stock is insufficient', async () 
 
 test('rejecting an order leaves product stock unchanged', async () => {
   const { pool, calls } = createTransactionalPool({ stock: 5 });
-  const repository = new MySQLOrderRepository(pool);
+  const resolve=createResolveProviderOrder({unitOfWork:new MySQLUnitOfWork(pool)});
 
-  const result = await repository.updatePendingStatus(10, 'rechazado');
+  const result = await resolve(10, 'rechazado');
 
   assert.deepEqual(result, { updated: true, id: 10, status: 'rechazado' });
   assert.equal(calls.readStock, false);

@@ -1,4 +1,4 @@
-const { parseProductId } = require('./productInput');
+const { parseProductId } = require('../../domain/productInput');
 
 const createDeleteProduct = ({ productRepository }) => async (id) => {
   const productId = parseProductId(id);
@@ -6,9 +6,9 @@ const createDeleteProduct = ({ productRepository }) => async (id) => {
   try {
     deleted = await productRepository.delete(productId);
   } catch (cause) {
-    if (cause.code === 'ER_ROW_IS_REFERENCED_2') {
+    if (cause.code === 'REFERENCED') {
       const error = new Error('No se puede eliminar el producto porque tiene pedidos asociados.');
-      error.statusCode = 409;
+      error.code = 'CONFLICT';
       throw error;
     }
     throw cause;
@@ -16,7 +16,7 @@ const createDeleteProduct = ({ productRepository }) => async (id) => {
 
   if (!deleted) {
     const error = new Error('Producto no encontrado.');
-    error.statusCode = 404;
+    error.code = 'NOT_FOUND';
     throw error;
   }
 

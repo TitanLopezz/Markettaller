@@ -3,11 +3,14 @@ import './App.css'
 import ProductCatalog from './ProductCatalog'
 import ProviderOrders from './ProviderOrders'
 import SuperAdminPanel from './SuperAdminPanel'
-import { getApiErrorMessage } from './apiError'
-import { USERS_API_URL } from './api'
+import { getApiErrorMessage } from '../apiError'
+import {portal,session} from '../bootstrap/services.js'
+import Storefront from './Storefront'
+import ShopOrders from './ShopOrders'
+import PasswordRecovery from './PasswordRecovery'
 
-const emptyForm = { name: '', email: '', password: '', role: 'gestor' }
-const roleLabel = (role) => role === 'proveedor' ? 'Proveedor' : role === 'super_admin' ? 'Super Admin' : 'Gestor de Productos'
+const emptyForm = { name: '', email: '', password: '', role: 'cliente' }
+const roleLabel = (role) => role === 'cliente' ? 'Cliente' : role === 'proveedor' ? 'Proveedor' : role === 'super_admin' ? 'Super Admin' : 'Gestor de Productos'
 const roleBadgeClass = (role) => role === 'proveedor'
   ? 'role-badge role-badge-provider'
   : role === 'super_admin'
@@ -16,15 +19,15 @@ const roleBadgeClass = (role) => role === 'proveedor'
 
 const loadSavedSession = () => {
   try {
-    const token = window.sessionStorage.getItem('authToken')
-    const user = JSON.parse(window.sessionStorage.getItem('authUser') || 'null')
+    const token = session.getItem('authToken')
+    const user = JSON.parse(session.getItem('authUser') || 'null')
 
     if (!token || !user?.role) {
-      return { user: null, view: 'auth' }
+      return { user: null, view: 'shop' }
     }
 
-    const savedView = window.sessionStorage.getItem('currentView')
-    const view = savedView === 'admin' && user.role === 'super_admin'
+    const savedView = session.getItem('currentView')
+    const view = user.role === 'cliente' || savedView === 'shop' ? 'shop' : savedView === 'sales' && ['super_admin','gestor'].includes(user.role) ? 'sales' : savedView === 'admin' && user.role === 'super_admin'
       ? 'admin'
       : savedView === 'orders' && user.role === 'proveedor'
         ? 'orders'
@@ -32,38 +35,41 @@ const loadSavedSession = () => {
 
     return { user, view }
   } catch {
-    window.sessionStorage.removeItem('authToken')
-    window.sessionStorage.removeItem('authUser')
-    window.sessionStorage.removeItem('currentView')
-    return { user: null, view: 'auth' }
+    session.removeItem('authToken')
+    session.removeItem('authUser')
+    session.removeItem('currentView')
+    return { user: null, view: 'shop' }
   }
 }
 
 function App() {
   const [savedSession] = useState(loadSavedSession)
   const [mode, setMode] = useState(() => (
-    window.sessionStorage.getItem('authMode') === 'login' ? 'login' : 'register'
+    session.getItem('authMode') === 'login' ? 'login' : 'register'
   ))
   const [formData, setFormData] = useState(emptyForm)
   const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(false)
   const [authenticatedUser, setAuthenticatedUser] = useState(savedSession.user)
   const [currentView, setCurrentView] = useState(savedSession.view)
+  const [resetToken,setResetToken] = useState(()=>new URLSearchParams(window.location.hash.slice(1)).get('reset'))
+  const [recovering,setRecovering] = useState(Boolean(resetToken))
+  useEffect(()=>{if(resetToken)window.history.replaceState(null,'',window.location.pathname+window.location.search)},[resetToken])
 
   useEffect(() => {
-    window.sessionStorage.setItem('authMode', mode)
+    session.setItem('authMode', mode)
   }, [mode])
 
   useEffect(() => {
     if (!authenticatedUser) {
-      window.sessionStorage.removeItem('authToken')
-      window.sessionStorage.removeItem('authUser')
-      window.sessionStorage.removeItem('currentView')
+      session.removeItem('authToken')
+      session.removeItem('authUser')
+      session.removeItem('currentView')
       return
     }
 
-    window.sessionStorage.setItem('authUser', JSON.stringify(authenticatedUser))
-    window.sessionStorage.setItem('currentView', currentView)
+    session.setItem('authUser', JSON.stringify(authenticatedUser))
+    session.setItem('currentView', currentView)
   }, [authenticatedUser, currentView])
 
   const handleChange = (event) => {
@@ -89,30 +95,21 @@ function App() {
 
     try {
       const action = mode === 'register' ? 'register' : 'login'
-      const response = await fetch(`${USERS_API_URL}/${action}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      })
-      const result = await response.json().catch(() => ({}))
-
-      if (!response.ok) {
-        throw new Error(result.message || 'No se pudo completar la solicitud.')
-      }
+      const result=await portal.account(action,formData)
 
       if (mode === 'register') {
         setFormData(emptyForm)
         setStatus({
           type: 'success',
-          message: 'Registro recibido. Tu cuenta está pendiente de autorización.',
+          message: result.message,
           accountRole: formData.role,
         })
       } else {
-        window.sessionStorage.setItem('authToken', result.token)
-        window.sessionStorage.setItem('authUser', JSON.stringify(result.user))
-        window.sessionStorage.setItem('currentView', 'catalog')
+        session.setItem('authToken', result.token)
+        session.setItem('authUser', JSON.stringify(result.user))
+        session.setItem('currentView', result.user.role === 'cliente' ? 'shop' : 'catalog')
         setAuthenticatedUser(result.user)
-        setCurrentView('catalog')
+        setCurrentView(result.user.role === 'cliente' ? 'shop' : 'catalog')
       }
     } catch (error) {
       setStatus({ type: 'error', message: getApiErrorMessage(error, 'No se pudo completar la solicitud.') })
@@ -122,22 +119,28 @@ function App() {
   }
 
   const handleLogout = () => {
-    window.sessionStorage.removeItem('authToken')
-    window.sessionStorage.removeItem('authUser')
-    window.sessionStorage.removeItem('currentView')
-    window.sessionStorage.removeItem('adminApprovalTab')
+    session.removeItem('authToken')
+    session.removeItem('authUser')
+    session.removeItem('currentView')
+    session.removeItem('adminApprovalTab')
     setAuthenticatedUser(null)
     setFormData(emptyForm)
     setStatus(null)
     setMode('login')
-    setCurrentView('auth')
+    setCurrentView('shop')
   }
+
+  if (recovering) return <PasswordRecovery token={resetToken} onBack={()=>{setResetToken(null);setRecovering(false);setMode('login');setCurrentView('auth')}}/>
+  if (currentView === 'shop') return <Storefront user={authenticatedUser} token={session.getItem('authToken')} onLogin={()=>{setMode('login');setCurrentView('auth')}} onLogout={handleLogout} onPortal={()=>setCurrentView('catalog')}/>
+  if (currentView === 'sales' && ['super_admin','gestor'].includes(authenticatedUser?.role)) return <main className="store-shell"><button className="secondary-btn no-print" onClick={handleBackToCatalog}>Volver al portal</button><ShopOrders token={session.getItem('authToken')} admin={authenticatedUser.role==='super_admin'} manager={authenticatedUser.role==='gestor'}/></main>
 
   if (currentView === 'catalog' && authenticatedUser) {
     return (
       <ProductCatalog
+        onShop={()=>setCurrentView('shop')}
+        onSales={()=>setCurrentView('sales')}
         user={authenticatedUser}
-        token={window.sessionStorage.getItem('authToken')}
+        token={session.getItem('authToken')}
         onLogout={handleLogout}
         onManageRequests={() => {
           window.scrollTo({ top: 0, left: 0 })
@@ -155,7 +158,7 @@ function App() {
     return (
       <ProviderOrders
         user={authenticatedUser}
-        token={window.sessionStorage.getItem('authToken')}
+        token={session.getItem('authToken')}
         onBack={handleBackToCatalog}
         onLogout={handleLogout}
       />
@@ -165,7 +168,7 @@ function App() {
   if (currentView === 'admin' && authenticatedUser?.role === 'super_admin') {
     return (
       <SuperAdminPanel
-        token={window.sessionStorage.getItem('authToken')}
+        token={session.getItem('authToken')}
         onBack={handleBackToCatalog}
       />
     )
@@ -174,6 +177,7 @@ function App() {
   return (
     <main className="app-shell">
       <section className="card" aria-labelledby="auth-title">
+        <button className="secondary-btn" onClick={()=>setCurrentView('shop')}>Explorar la tienda</button>
         <p className="eyebrow">PORTAL DE CUENTAS</p>
         <h1 id="auth-title">{authenticatedUser ? 'Acceso confirmado' : mode === 'register' ? 'Crear cuenta' : 'Iniciar sesión'}</h1>
 
@@ -189,8 +193,8 @@ function App() {
           <>
             <p className="form-intro">
               {mode === 'register'
-                ? 'Solicita acceso para comenzar a trabajar en el portal.'
-                : 'Ingresa con tu cuenta autorizada.'}
+                ? 'Crea una cuenta de cliente para comprar. Las cuentas de gestión requieren autorización.'
+                : 'Ingresa con tu cuenta.'}
             </p>
 
             <form className="user-form" onSubmit={handleSubmit}>
@@ -228,6 +232,7 @@ function App() {
                   value={formData.password}
                   onChange={handleChange}
                   autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
+                  minLength={mode === 'register' ? 8 : undefined}
                   required
                 />
               </label>
@@ -236,6 +241,7 @@ function App() {
                 <label>
                   Tipo de cuenta
                   <select name="role" value={formData.role} onChange={handleChange}>
+                    <option value="cliente">Cliente</option>
                     <option value="gestor">Gestor de Productos</option>
                     <option value="proveedor">Proveedor</option>
                   </select>
@@ -243,7 +249,7 @@ function App() {
               )}
 
               <button type="submit" className="primary-btn" disabled={loading}>
-                {loading ? 'Procesando...' : mode === 'register' ? 'Solicitar registro' : 'Entrar'}
+                {loading ? 'Procesando...' : mode === 'register' ? formData.role === 'cliente' ? 'Crear cuenta' : 'Solicitar registro' : 'Entrar'}
               </button>
             </form>
 
@@ -253,6 +259,7 @@ function App() {
                 {mode === 'register' ? 'Inicia sesión' : 'Regístrate'}
               </button>
             </p>
+            {mode === 'login' && <button className="secondary-btn" onClick={()=>setRecovering(true)}>Olvidé mi contraseña</button>}
           </>
         )}
 

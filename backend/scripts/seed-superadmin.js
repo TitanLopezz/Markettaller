@@ -1,78 +1,16 @@
-const path = require('node:path');
-const bcrypt = require('bcryptjs');
-const mysql = require('mysql2/promise');
-const { USER_ROLES, USER_STATUSES } = require('../src/domain/user');
-
-require('dotenv').config({ path: path.join(__dirname, '../.env') });
-
-const assertSuperAdminAccount = (existingUsers) => {
-  if (existingUsers.length && existingUsers[0].role !== USER_ROLES.SUPER_ADMIN) {
-    throw new Error('Ese email ya pertenece a otra cuenta; no se modificó su rol.');
-  }
+const path=require('node:path');
+require('dotenv').config({path:process.env.ENV_FILE||path.join(__dirname,'../.env')});
+const {createMySQLPool}=require('../src/infrastructure/database/mysqlPool');
+const {MySQLUnitOfWork}=require('../src/infrastructure/database/MySQLUnitOfWork');
+const {BcryptPasswordHasher}=require('../src/infrastructure/services/BcryptPasswordHasher');
+const {createSeedSuperAdmin,assertSuperAdminAccount}=require('../src/application/use-cases/seedSuperAdmin');
+const run=async()=>{
+ const pool=createMySQLPool();
+ try{
+  const seed=createSeedSuperAdmin({unitOfWork:new MySQLUnitOfWork(pool),passwordHasher:new BcryptPasswordHasher()});
+  await seed({name:process.env.SUPER_ADMIN_NAME?.trim()||'Super Admin',email:(process.env.SUPERADMIN_EMAIL||process.env.SUPER_ADMIN_EMAIL)?.trim().toLowerCase(),password:process.env.SUPERADMIN_PASSWORD||process.env.SUPER_ADMIN_PASSWORD});
+  console.log('Super Admin creado o actualizado.');
+ }finally{await pool.end();}
 };
-
-const run = async () => {
-  const name = process.env.SUPER_ADMIN_NAME?.trim() || 'Super Admin';
-  const configuredEmail = process.env.SUPERADMIN_EMAIL || process.env.SUPER_ADMIN_EMAIL;
-  const email = configuredEmail?.trim().toLowerCase();
-  const password = process.env.SUPERADMIN_PASSWORD || process.env.SUPER_ADMIN_PASSWORD;
-
-  if (!email || !password) {
-    throw new Error('Configura SUPERADMIN_EMAIL y SUPERADMIN_PASSWORD en backend/.env.');
-  }
-
-  const missingDatabaseSettings = ['DB_HOST', 'DB_USER', 'DB_NAME'].filter((key) => !process.env[key]);
-  if (missingDatabaseSettings.length) {
-    throw new Error(`Faltan variables de entorno: ${missingDatabaseSettings.join(', ')}`);
-  }
-
-  const pool = mysql.createPool({
-    host: process.env.DB_HOST,
-    port: Number(process.env.DB_PORT || 3306),
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME,
-  });
-
-  try {
-    const passwordHash = await bcrypt.hash(password, 12);
-    const connection = await pool.getConnection();
-
-    try {
-      await connection.beginTransaction();
-      const [existingUsers] = await connection.execute(
-        'SELECT id, role FROM users WHERE email = ? LIMIT 1 FOR UPDATE',
-        [email],
-      );
-      assertSuperAdminAccount(existingUsers);
-
-      await connection.execute(
-        `INSERT INTO users (name, email, password_hash, role, status)
-         VALUES (?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE
-           name = VALUES(name),
-           password_hash = VALUES(password_hash),
-           status = VALUES(status)`,
-        [name, email, passwordHash, USER_ROLES.SUPER_ADMIN, USER_STATUSES.APPROVED],
-      );
-      await connection.commit();
-      console.log(`Super Admin creado o actualizado en ${process.env.DB_NAME}: ${email}.`);
-    } catch (error) {
-      await connection.rollback();
-      throw error;
-    } finally {
-      connection.release();
-    }
-  } finally {
-    await pool.end();
-  }
-};
-
-if (require.main === module) {
-  run().catch((error) => {
-    console.error('No se pudo crear o actualizar Super Admin:', error.message);
-    process.exitCode = 1;
-  });
-}
-
-module.exports = { assertSuperAdminAccount, run };
+if(require.main===module)run().catch(error=>{console.error('No se pudo crear o actualizar Super Admin:',error.message);process.exitCode=1;});
+module.exports={run,assertSuperAdminAccount};

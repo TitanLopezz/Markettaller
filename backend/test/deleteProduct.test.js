@@ -6,12 +6,12 @@ test('direct deletion reports a conflict when orders reference the product', asy
   const deleteProduct = createDeleteProduct({
     productRepository: {
       delete: async () => {
-        throw Object.assign(new Error('Foreign key constraint'), { code: 'ER_ROW_IS_REFERENCED_2' });
+        throw Object.assign(new Error('Foreign key constraint'), { code: 'REFERENCED' });
       },
     },
   });
   await assert.rejects(deleteProduct(1), {
-    statusCode: 409,
+    code: 'CONFLICT',
     message: 'No se puede eliminar el producto porque tiene pedidos asociados.',
   });
 });

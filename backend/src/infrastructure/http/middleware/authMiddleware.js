@@ -24,7 +24,7 @@ const verifyToken = (req, res, next) => {
       return res.status(401).json({ message: 'El token no contiene una identidad válida.' });
     }
 
-    req.user = { id: payload.sub, role: payload.role };
+    req.user = { id: payload.sub, role: payload.role, version: payload.version || 0 };
     return next();
   } catch {
     return res.status(401).json({ message: 'Token inválido o expirado.' });

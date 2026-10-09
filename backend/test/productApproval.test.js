@@ -1,3 +1,5 @@
+const {MySQLUnitOfWork}=require('../src/infrastructure/database/MySQLUnitOfWork');
+const {createResolveProductRequest}=require('../src/application/use-cases/resolveProductRequest');
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const { createCreateProductRequest } = require('../src/application/use-cases/createProductRequest');
@@ -94,9 +96,9 @@ test('manager create requests normalize product data without inserting a product
 
 test('approving a create request inserts the product and commits its status atomically', async () => {
   const { pool, calls } = createTransactionalPool(createRequestRecord('crear'));
-  const repository = new MySQLProductRequestRepository(pool);
+  const resolve=createResolveProductRequest({unitOfWork:new MySQLUnitOfWork(pool)});
 
-  const result = await repository.updatePendingStatus(5, 'aprobado', 3);
+  const result = await resolve(5, 'aprobado', 3);
 
   assert.equal(result.updated, true);
   assert.equal(calls.inserts.length, 1);
@@ -108,9 +110,9 @@ test('approving a create request inserts the product and commits its status atom
 
 test('rejecting a delete request leaves the product untouched', async () => {
   const { pool, calls } = createTransactionalPool(createRequestRecord('eliminar', 17));
-  const repository = new MySQLProductRequestRepository(pool);
+  const resolve=createResolveProductRequest({unitOfWork:new MySQLUnitOfWork(pool)});
 
-  const result = await repository.updatePendingStatus(5, 'rechazado', 3);
+  const result = await resolve(5, 'rechazado', 3);
 
   assert.equal(result.updated, true);
   assert.equal(calls.deletes.length, 0);
@@ -122,11 +124,11 @@ test('rejecting a delete request leaves the product untouched', async () => {
 test('a product referenced by orders cannot be deleted through an approved request', async () => {
   const deleteError = Object.assign(new Error('Foreign key constraint'), { code: 'ER_ROW_IS_REFERENCED_2' });
   const { pool, calls } = createTransactionalPool(createRequestRecord('eliminar', 17), deleteError);
-  const repository = new MySQLProductRequestRepository(pool);
+  const resolve=createResolveProductRequest({unitOfWork:new MySQLUnitOfWork(pool)});
 
   await assert.rejects(
-    repository.updatePendingStatus(5, 'aprobado', 3),
-    { statusCode: 409, message: 'No se puede eliminar el producto porque tiene pedidos asociados.' },
+    resolve(5, 'aprobado', 3),
+    { code: 'CONFLICT', message: 'No se puede eliminar el producto porque tiene pedidos asociados.' },
   );
   assert.equal(calls.updatedStatus, null);
   assert.equal(calls.committed, false);
@@ -135,14 +137,12 @@ test('a product referenced by orders cannot be deleted through an approved reque
 
 test('product request decisions accept only approved or rejected statuses', async () => {
   const updateStatus = createUpdateProductRequestStatus({
-    productRequestRepository: {
-      updatePendingStatus: async (id, status, reviewerId) => ({ updated: true, id, status, reviewerId }),
-    },
+    resolveProductRequest: async (id, status, reviewerId) => ({ updated: true, id, status, reviewerId }),
   });
 
   await assert.rejects(
     updateStatus({ id: 5, status: 'pendiente', reviewerId: 3 }),
-    { statusCode: 400 },
+    { code: 'VALIDATION' },
   );
   assert.deepEqual(await updateStatus({ id: '5', status: 'aprobado', reviewerId: 3 }), {
     updated: true,

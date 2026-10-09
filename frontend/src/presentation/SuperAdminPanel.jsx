@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
-import { getApiErrorMessage } from './apiError'
-import { ORDERS_API_URL, PRODUCTS_API_URL, USERS_API_URL } from './api'
+import { getApiErrorMessage } from '../apiError'
+import {portal,session} from '../bootstrap/services.js'
+import ProductImage from './ProductImage'
+import ShopOrders from './ShopOrders'
 
 const orderDate = new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short' })
 const currency = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' })
@@ -18,8 +20,8 @@ function SuperAdminPanel({ token, onBack }) {
   const [orders, setOrders] = useState([])
   const [productRequests, setProductRequests] = useState([])
   const [activeTab, setActiveTab] = useState(() => {
-    const savedTab = window.sessionStorage.getItem('adminApprovalTab')
-    return ['users', 'orders', 'products'].includes(savedTab) ? savedTab : 'users'
+    const savedTab = session.getItem('adminApprovalTab')
+    return ['users', 'orders', 'products', 'sales'].includes(savedTab) ? savedTab : 'users'
   })
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState(null)
@@ -28,7 +30,7 @@ function SuperAdminPanel({ token, onBack }) {
   const [refreshKey, setRefreshKey] = useState(0)
 
   const selectTab = (tab) => {
-    window.sessionStorage.setItem('adminApprovalTab', tab)
+    session.setItem('adminApprovalTab', tab)
     setActiveTab(tab)
     setRefreshKey((currentKey) => currentKey + 1)
     setError('')
@@ -43,21 +45,7 @@ function SuperAdminPanel({ token, onBack }) {
       setError('')
 
       try {
-        const endpoints = [
-          `${USERS_API_URL}/pending`,
-          `${ORDERS_API_URL}/pending`,
-          `${PRODUCTS_API_URL}/requests/pending`,
-        ]
-        const responses = await Promise.all(endpoints.map((endpoint) => fetch(endpoint, {
-          headers: { Authorization: `Bearer ${token}` },
-          signal: controller.signal,
-        })))
-        const results = await Promise.all(responses.map((response) => response.json().catch(() => [])))
-        const failedIndex = responses.findIndex((response) => !response.ok)
-
-        if (failedIndex !== -1) {
-          throw new Error(results[failedIndex].message || 'No se pudo cargar la lista de solicitudes.')
-        }
+        const results=await portal.pendingApprovals({token,signal:controller.signal})
 
         setUsers(Array.isArray(results[0]) ? results[0] : [])
         setOrders(Array.isArray(results[1]) ? results[1] : [])
@@ -85,23 +73,7 @@ function SuperAdminPanel({ token, onBack }) {
     setNotice('')
 
     try {
-      const endpoint = isUser ? USERS_API_URL : isOrder ? ORDERS_API_URL : PRODUCTS_API_URL
-      const requestUrl = activeTab === 'products'
-        ? `${endpoint}/requests/${item.id}/status`
-        : `${endpoint}/${item.id}/status`
-      const response = await fetch(requestUrl, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status }),
-      })
-      const result = await response.json().catch(() => ({}))
-
-      if (!response.ok) {
-        throw new Error(result.message || 'No se pudo actualizar la solicitud.')
-      }
+      await portal.resolveApproval(activeTab,item.id,status,{token})
 
       if (isOrder) {
         setOrders((currentOrders) => currentOrders.filter((order) => order.id !== item.id))
@@ -126,8 +98,8 @@ function SuperAdminPanel({ token, onBack }) {
       <section className="card admin-card" aria-labelledby="admin-title">
         <div className="admin-heading-row">
           <div>
-            <p className="eyebrow">ADMINISTRACIÓN DE ACCESOS</p>
-            <h1 id="admin-title">Aprobaciones pendientes</h1>
+            <p className="eyebrow">SUPER ADMIN</p>
+            <h1 id="admin-title">Panel de administración</h1>
           </div>
           <button type="button" className="secondary-btn admin-back" onClick={onBack}>
             Volver al catálogo
@@ -135,14 +107,19 @@ function SuperAdminPanel({ token, onBack }) {
         </div>
 
         <p className="form-intro">
-          {activeTab === 'users'
+          {activeTab === 'sales'
+            ? 'Consulta las compras, las instrucciones del gestor y los envíos. Acepta los pagos solo después de comprobar que recibiste el dinero.'
+            : activeTab === 'users'
             ? 'Revisa las cuentas que solicitan acceso.'
             : activeTab === 'orders'
               ? 'Revisa los pedidos enviados por proveedores.'
               : 'Revisa las solicitudes de alta y eliminación de productos.'}
         </p>
 
-        <div className="approval-tabs" role="tablist" aria-label="Solicitudes pendientes">
+        <div className="approval-tabs" role="tablist" aria-label="Secciones de administración">
+          <button type="button" role="tab" aria-selected={activeTab === 'sales'} className={activeTab === 'sales' ? 'approval-tab active' : 'approval-tab'} onClick={() => selectTab('sales')}>
+            Compras y transacciones
+          </button>
           <button
             type="button"
             role="tab"
@@ -159,7 +136,7 @@ function SuperAdminPanel({ token, onBack }) {
             className={activeTab === 'orders' ? 'approval-tab active' : 'approval-tab'}
             onClick={() => selectTab('orders')}
           >
-            Pedidos ({orders.length})
+            Pedidos de proveedores ({orders.length})
           </button>
           <button
             type="button"
@@ -175,7 +152,7 @@ function SuperAdminPanel({ token, onBack }) {
         {error && <p className="status error" role="alert">{error}</p>}
         {notice && <p className="status success" role="status">{notice}</p>}
 
-        {loading ? (
+        {activeTab === 'sales' ? <ShopOrders token={token} admin/> : loading ? (
           <p className="admin-message" role="status">Cargando solicitudes...</p>
         ) : activeTab === 'users' && users.length === 0 ? (
           <p className="admin-message">No hay cuentas pendientes de autorización.</p>
@@ -239,7 +216,7 @@ function SuperAdminPanel({ token, onBack }) {
                     </td>
                     <td data-label="Producto">
                       <div className="order-product-cell">
-                        {order.product_image_url ? <img src={order.product_image_url} alt="" loading="lazy" /> : <span className="order-mini-image-empty" />}
+                        <ProductImage src={order.product_image_url} alt={order.product_name} className="" emptyClassName="order-mini-image-empty" />
                         <span>{order.product_name}</span>
                       </div>
                     </td>
@@ -287,7 +264,7 @@ function SuperAdminPanel({ token, onBack }) {
           </div>
         )}
 
-        {!loading && error && (
+        {activeTab !== 'sales' && !loading && error && (
           <button type="button" className="secondary-btn retry-btn" onClick={() => setRefreshKey((key) => key + 1)}>
             Reintentar
           </button>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { getApiErrorMessage } from './apiError'
-import { ORDERS_API_URL } from './api'
+import { getApiErrorMessage } from '../apiError'
+import {portal} from '../bootstrap/services.js'
+import ProductImage from './ProductImage'
 
 const dateFormatter = new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short' })
 const statusLabels = {
@@ -23,15 +24,7 @@ function ProviderOrders({ user, token, onBack, onLogout }) {
       setError('')
 
       try {
-        const response = await fetch(`${ORDERS_API_URL}/my-orders`, {
-          headers: { Authorization: `Bearer ${token}` },
-          signal: controller.signal,
-        })
-        const result = await response.json().catch(() => ({}))
-
-        if (!response.ok) {
-          throw new Error(result.message || 'No se pudo cargar el historial de pedidos.')
-        }
+        const result=await portal.providerOrders({token,signal:controller.signal})
 
         setOrders(Array.isArray(result) ? result : [])
       } catch (requestError) {
@@ -73,11 +66,7 @@ function ProviderOrders({ user, token, onBack, onLogout }) {
           <div className="orders-list">
             {orders.map((order) => (
               <article className="provider-order" key={order.id}>
-                {order.product_image_url ? (
-                  <img src={order.product_image_url} alt="" loading="lazy" />
-                ) : (
-                  <div className="provider-order-image-empty">Sin imagen</div>
-                )}
+                <ProductImage src={order.product_image_url} alt={order.product_name} className="" emptyClassName="provider-order-image-empty" />
                 <div className="provider-order-details">
                   <p className="product-category">{order.product_name}</p>
                   <p>Cantidad solicitada: <strong>{order.quantity}</strong></p>

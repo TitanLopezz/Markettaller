@@ -1,3 +1,5 @@
+const {MySQLUnitOfWork}=require('../src/infrastructure/database/MySQLUnitOfWork');
+const {createResolveProviderOrder}=require('../src/application/use-cases/resolveProviderOrder');
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const path = require('node:path');
@@ -37,6 +39,7 @@ test('MySQL order repository creates, joins, lists, resolves orders, and deducts
     );
     productId = productResult.insertId;
     const repository = new MySQLOrderRepository(pool);
+    const resolve=createResolveProviderOrder({unitOfWork:new MySQLUnitOfWork(pool)});
     const created = await repository.create({
       providerId: userId,
       productId: productResult.insertId,
@@ -54,7 +57,7 @@ test('MySQL order repository creates, joins, lists, resolves orders, and deducts
     assert.equal(pendingOrder.provider_email, email);
     assert.equal(pendingOrder.product_name, `Producto ${marker}`);
 
-    const update = await repository.updatePendingStatus(created.id, 'aprobado');
+    const update = await resolve(created.id, 'aprobado');
     assert.equal(update.updated, true);
     assert.equal(update.status, 'aprobado');
     const [[product]] = await pool.execute('SELECT stock FROM products WHERE id = ?', [productId]);
@@ -67,8 +70,8 @@ test('MySQL order repository creates, joins, lists, resolves orders, and deducts
     });
     orderIds.push(overStockOrder.id);
     await assert.rejects(
-      repository.updatePendingStatus(overStockOrder.id, 'aprobado'),
-      { statusCode: 409, message: 'Stock insuficiente para aprobar el pedido.' },
+      resolve(overStockOrder.id, 'aprobado'),
+      { code: 'CONFLICT', message: 'Stock insuficiente para aprobar el pedido.' },
     );
     const [[unchangedStockOrder]] = await pool.execute(
       `SELECT p.stock, o.status

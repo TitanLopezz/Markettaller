@@ -8,6 +8,7 @@
     "dev:backend": "npm --prefix ../backend run dev",
     "dev:frontend": "vite",
     "build": "vite build",
+    "test": "node --test src/imageUrl.test.js src/shopApi.test.js src/architecture.test.js src/storeCore.test.js",
     "lint": "oxlint src vite.config.js --deny-warnings",
     "preview": "vite preview"
   },

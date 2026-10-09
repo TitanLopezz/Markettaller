@@ -1,4 +1,4 @@
-const { normalizeProductInput, parseProductId } = require('./productInput');
+const { normalizeProductInput, parseProductId } = require('../../domain/productInput');
 
 const createUpdateProduct = ({ productRepository }) => async ({ id, ...input }) => {
   const productId = parseProductId(id);
@@ -7,7 +7,7 @@ const createUpdateProduct = ({ productRepository }) => async ({ id, ...input }) 
 
   if (!updatedProduct) {
     const error = new Error('Producto no encontrado.');
-    error.statusCode = 404;
+    error.code = 'NOT_FOUND';
     throw error;
   }
 
