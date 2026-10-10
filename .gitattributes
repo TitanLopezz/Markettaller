@@ -1,3 +1,4 @@
 deploy/*.sh text eol=lf
 deploy/*.mjs text eol=lf
 deploy/*.template text eol=lf
+*.pdf binary
