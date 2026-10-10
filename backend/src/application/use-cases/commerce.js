@@ -1,8 +1,10 @@
 const {fail}=require('../../domain/errors');
 const {text,positiveId,addressInput,checkoutInput,toCents}=require('../../domain/commerceInput');
 const {orderChanges,assertFulfillmentChanges}=require('../../domain/shopOrder');
+const {CreateOrderUseCase}=require('./CreateOrderUseCase');
 
-const createCommerceUseCases=({repository,unitOfWork,passwordHasher,crypto,mailer,clock,logger,config,frontendOrigin})=>{
+const createCommerceUseCases=({repository,unitOfWork,passwordHasher,crypto,mailer,emailService,clock,logger,config,frontendOrigin})=>{
+  const createOrderUseCase=emailService?new CreateOrderUseCase({emailService,logger}):null;
   const getOrder=async(id,userId,staff=false)=>{
     const order=await repository.findOrder(positiveId(id));
     if(!order||(!staff&&Number(order.user_id)!==Number(userId)))throw fail('Pedido no encontrado.','NOT_FOUND');
@@ -12,7 +14,7 @@ const createCommerceUseCases=({repository,unitOfWork,passwordHasher,crypto,maile
     try{const user=await repository.findUser(order.user_id);if(user)await mailer.send(user.email,`Pedido #${order.id}: ${order.status}`,`Pedido #${order.id}\nEstado: ${order.status}\nPago: ${order.payment_status}\nTotal: ${(Number(order.total_cents)/100).toFixed(2)} MXN\nConsulta el detalle en tu cuenta.`);}
     catch{logger.error('No se pudo enviar el correo del pedido; la notificación está disponible en la cuenta.');}
   };
-  const checkout=async(userId,input)=>{
+  const saveOrder=async(userId,input)=>{
     const normalized=checkoutInput(input);
     const data={...normalized,request_hash:crypto.hash(JSON.stringify({items:normalized.items,address:normalized.address,payment_method:normalized.payment_method}))};
     if(!config.payment_methods.includes(data.payment_method))throw fail('Ese método de pago no está habilitado.');
@@ -44,7 +46,13 @@ const createCommerceUseCases=({repository,unitOfWork,passwordHasher,crypto,maile
       if(existing?.request_hash!==data.request_hash)throw fail('La clave ya pertenece a otro carrito.','CONFLICT');
       result={id:existing.id,repeated:true};
     }
-    const order=await getOrder(result.id,userId);if(!result.repeated)await mailOrder(order);return order;
+    return {order:await getOrder(result.id,userId),repeated:Boolean(result.repeated)};
+  };
+  const checkout=async(userId,input)=>{
+    if(createOrderUseCase)return createOrderUseCase.run({saveOrder:()=>saveOrder(userId,input),loadCustomer:id=>repository.findUser(id),transferInstructions:config.transfer_instructions});
+    const {order,repeated}=await saveOrder(userId,input);
+    if(!repeated)await mailOrder(order);
+    return order;
   };
   const updateOrder=async(idValue,userId,input,staff)=>{
     const id=positiveId(idValue);
