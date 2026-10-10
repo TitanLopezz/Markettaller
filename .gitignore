@@ -20,3 +20,7 @@ release/
 runtime-env.json
 backups/
 private-data/
+
+# Prompts de trabajo locales
+PROMPT_*.md
+prompt_*.md
