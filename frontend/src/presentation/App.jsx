@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import './App.css'
 import ProductCatalog from './ProductCatalog'
 import ProviderOrders from './ProviderOrders'
@@ -7,6 +7,7 @@ import { getApiErrorMessage } from '../apiError'
 import {portal,session} from '../bootstrap/services.js'
 import Storefront from './Storefront'
 import ShopOrders from './ShopOrders'
+const DashboardAdmin = lazy(()=>import('./DashboardAdmin'))
 import PasswordRecovery from './PasswordRecovery'
 
 const emptyForm = { name: '', email: '', password: '', role: 'cliente' }
@@ -27,7 +28,7 @@ const loadSavedSession = () => {
     }
 
     const savedView = session.getItem('currentView')
-    const view = user.role === 'cliente' || savedView === 'shop' ? 'shop' : savedView === 'sales' && ['super_admin','gestor'].includes(user.role) ? 'sales' : savedView === 'admin' && user.role === 'super_admin'
+    const view = savedView === 'analytics' && user.role === 'super_admin' ? 'analytics' : user.role === 'cliente' || savedView === 'shop' ? 'shop' : savedView === 'sales' && ['super_admin','gestor'].includes(user.role) ? 'sales' : savedView === 'admin' && user.role === 'super_admin'
       ? 'admin'
       : savedView === 'orders' && user.role === 'proveedor'
         ? 'orders'
@@ -134,9 +135,12 @@ function App() {
   if (currentView === 'shop') return <Storefront user={authenticatedUser} token={session.getItem('authToken')} onLogin={()=>{setMode('login');setCurrentView('auth')}} onLogout={handleLogout} onPortal={()=>setCurrentView('catalog')}/>
   if (currentView === 'sales' && ['super_admin','gestor'].includes(authenticatedUser?.role)) return <main className="store-shell"><button className="secondary-btn no-print" onClick={handleBackToCatalog}>Volver al portal</button><ShopOrders token={session.getItem('authToken')} admin={authenticatedUser.role==='super_admin'} manager={authenticatedUser.role==='gestor'}/></main>
 
+  if (currentView === 'analytics' && authenticatedUser?.role === 'super_admin') return <Suspense fallback={<p role="status">Cargando dashboard…</p>}><DashboardAdmin user={authenticatedUser} token={session.getItem('authToken')} onBack={handleBackToCatalog}/></Suspense>
+
   if (currentView === 'catalog' && authenticatedUser) {
     return (
       <ProductCatalog
+        onAnalytics={()=>setCurrentView('analytics')}
         onShop={()=>setCurrentView('shop')}
         onSales={()=>setCurrentView('sales')}
         user={authenticatedUser}

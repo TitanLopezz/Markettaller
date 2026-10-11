@@ -75,6 +75,8 @@ CREATE TABLE IF NOT EXISTS shop_fulfillment (
 
 CREATE UNIQUE INDEX IF NOT EXISTS shop_idempotency ON shop_orders (user_id, request_key);
 CREATE INDEX IF NOT EXISTS shop_history ON shop_orders (user_id, created_at);
+CREATE INDEX IF NOT EXISTS shop_analytics_created ON shop_orders (created_at);
+CREATE INDEX IF NOT EXISTS shop_items_order ON shop_order_items (order_id);
 
 DROP TRIGGER IF EXISTS shop_orders_touch_updated_at ON shop_orders;
 CREATE TRIGGER shop_orders_touch_updated_at BEFORE UPDATE ON shop_orders FOR EACH ROW EXECUTE FUNCTION touch_updated_at();

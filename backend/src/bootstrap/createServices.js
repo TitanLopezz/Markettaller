@@ -1,4 +1,6 @@
 const { createCommerce } = require('./createCommerce');
+const { AnalyticsService } = require('../application/use-cases/AnalyticsService');
+const { AnalyticsRepositoryAdapter } = require('../infrastructure/repositories/AnalyticsRepositoryAdapter');
 const { PostgresUserRepository } = require('../infrastructure/repositories/PostgresUserRepository');
 const { PostgresProductRepository } = require('../infrastructure/repositories/PostgresProductRepository');
 const { PostgresProductRequestRepository } = require('../infrastructure/repositories/PostgresProductRequestRepository');
@@ -28,6 +30,7 @@ const {createResolveProductRequest}=require('../application/use-cases/resolvePro
 const {createAuthenticateSession}=require('../application/use-cases/authenticateSession');
 const {createSubmitProductChange}=require('../application/use-cases/submitProductChange');
 const createServices=(pool,env=process.env)=>{
+ const analytics = new AnalyticsService(new AnalyticsRepositoryAdapter(pool));
  const passwordHasher=new BcryptPasswordHasher(),crypto=new NodeCryptoService(),tokenService=new JwtTokenService(env.JWT_SECRET),unitOfWork=new PostgresUnitOfWork(pool);
  const resolveProviderOrder=createResolveProviderOrder({unitOfWork}),resolveProductRequest=createResolveProductRequest({unitOfWork});
   const userRepository = new PostgresUserRepository(pool);
@@ -49,6 +52,6 @@ const createServices=(pool,env=process.env)=>{
   const listMyOrders = createListMyOrders({ orderRepository });
   const listPendingOrders = createListPendingOrders({ orderRepository });
   const updateOrderStatus = createUpdateOrderStatus({ resolveProviderOrder });
-return {authenticateSession:createAuthenticateSession({userRepository}),commerce:createCommerce(pool,env),registerUser,loginUser,listPendingUsers,updateUserStatus,listProducts,createProduct,updateProduct,deleteProduct,createProductRequest,listPendingProductRequests,updateProductRequestStatus,createOrder,listMyOrders,listPendingOrders,updateOrderStatus,submitProductChange:createSubmitProductChange({createProduct,deleteProduct,createProductRequest})};
+return {analytics,authenticateSession:createAuthenticateSession({userRepository}),commerce:createCommerce(pool,env),registerUser,loginUser,listPendingUsers,updateUserStatus,listProducts,createProduct,updateProduct,deleteProduct,createProductRequest,listPendingProductRequests,updateProductRequestStatus,createOrder,listMyOrders,listPendingOrders,updateOrderStatus,submitProductChange:createSubmitProductChange({createProduct,deleteProduct,createProductRequest})};
 };
 module.exports={createServices};

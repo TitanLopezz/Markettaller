@@ -18,7 +18,7 @@ function roleKey(role) {
   return String(role || '').trim().toLowerCase().replace(/[\s-]+/g, '_')
 }
 
-function ProductCatalog({ user, token, onLogout, onManageRequests, onViewOrders, onShop, onSales }) {
+function ProductCatalog({ user, token, onLogout, onManageRequests, onViewOrders, onShop, onSales, onAnalytics }) {
   const role = roleKey(user?.role)
   const canManageProducts = ['gestor', 'gestor_de_productos', 'super_admin'].includes(role)
   const isSuperAdmin = role === 'super_admin'
@@ -183,7 +183,7 @@ function ProductCatalog({ user, token, onLogout, onManageRequests, onViewOrders,
           </div>
           <nav className="catalog-nav" aria-label="Acciones de cuenta">
             <button type="button" className="secondary-btn" onClick={onShop}>Ver tienda</button>
-            {canManageProducts && <button type="button" className="primary-btn" onClick={onSales}>{isSuperAdmin?'Ventas y entregas':'Compras y despachos'}</button>}
+            {isSuperAdmin && <button type="button" className="secondary-btn" onClick={onAnalytics}>Dashboard de métricas</button>}{canManageProducts && <button type="button" className="primary-btn" onClick={onSales}>{isSuperAdmin?'Ventas y entregas':'Compras y despachos'}</button>}
             {isSuperAdmin && (
               <button type="button" className="secondary-btn" onClick={onManageRequests}>
                 Panel Super Admin

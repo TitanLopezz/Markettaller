@@ -1,4 +1,5 @@
 const express = require('express');
+const { createAnalyticsRouter } = require('./routes/analyticsRoutes');
 const cors = require('cors');
 const { createUserRouter } = require('./routes/userRoutes');
 const { createProductRouter } = require('./routes/productRoutes');
@@ -52,6 +53,7 @@ const createApp = (useCases) => {
     });
   });
   app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
+  if (useCases.analytics) app.use('/api/analytics', createAnalyticsRouter(useCases.analytics));
   app.use('/api/users', createUserRouter(useCases));
   app.use('/api/products', createProductRouter(useCases));
   app.use('/api/orders', createOrderRouter(useCases));
